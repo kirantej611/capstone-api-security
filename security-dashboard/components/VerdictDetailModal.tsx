@@ -10,10 +10,7 @@ import {
   Copy,
   Check,
   Ban,
-  Database,
   Info,
-  Clock,
-  ExternalLink,
 } from 'lucide-react';
 import { RecentVerdict } from '../lib/types';
 import { FEATURE_METADATA, highlightAttackPayload } from '../lib/xaiUtils';
@@ -39,7 +36,6 @@ export default function VerdictDetailModal({
   const rawPayload = verdict.body || verdict.path || '';
   const highlighted = highlightAttackPayload(rawPayload);
 
-  // Fallback probabilities if missing
   const probs = verdict.all_probabilities || {
     Normal: verdict.threat_type === 'Normal' ? 0.99 : 0.01,
     SQLi: verdict.threat_type === 'SQLi' ? 0.985 : 0.005,
@@ -48,7 +44,6 @@ export default function VerdictDetailModal({
     'Command Injection': verdict.threat_type === 'Command Injection' ? 0.989 : 0.003,
   };
 
-  // Fallback feature importance if missing
   const features = verdict.feature_importance || {
     num_sql_keywords: verdict.threat_type === 'SQLi' ? 4.25 : 0.1,
     num_special_chars: verdict.threat_type === 'SQLi' ? 3.12 : 0.2,
@@ -81,159 +76,146 @@ export default function VerdictDetailModal({
   const isAnomalous = anomalyScore > anomalyThreshold;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-btn" onClick={onClose}>
+    <div className="hub-modal-overlay" onClick={onClose}>
+      <div className="hub-modal-card" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '1.25rem',
+            right: '1.25rem',
+            background: '#f1f5f9',
+            border: 'none',
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#64748b',
+          }}
+        >
           <X size={16} />
         </button>
 
-        {/* Modal Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.25rem' }}>
+        {/* Modal Top Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.5rem' }}>
           <div
             style={{
-              width: '42px',
-              height: '42px',
+              width: '44px',
+              height: '44px',
               borderRadius: 'var(--radius-md)',
-              background: verdict.action === 'BLOCK' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)',
-              border: `1px solid ${verdict.action === 'BLOCK' ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)'}`,
+              background: verdict.action === 'BLOCK' ? '#fee2e2' : '#dcfce7',
+              color: verdict.action === 'BLOCK' ? '#dc2626' : '#16a34a',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: verdict.action === 'BLOCK' ? '#ef4444' : '#10b981',
             }}
           >
-            <ShieldAlert size={22} />
+            <ShieldAlert size={24} />
           </div>
 
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <h2 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: 700 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <h2 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: 700 }}>
                 Explainable AI (XAI) Forensic Dossier
               </h2>
-              <span className={`risk-pill risk-${verdict.risk_level || 'LOW'}`}>
-                {verdict.risk_level || 'LOW RISK'}
-              </span>
-            </div>
-            <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-              Correlation ID: {verdict.request_id}
-            </div>
-          </div>
-        </div>
-
-        {/* Metadata Strip */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: '0.75rem',
-            padding: '0.85rem',
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '1.25rem',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Target Path</div>
-            <div className="font-mono" style={{ fontSize: '0.8rem', color: '#fff', marginTop: '2px', wordBreak: 'break-all' }}>
-              <span className={`method-badge method-${verdict.method}`} style={{ marginRight: '4px' }}>
-                {verdict.method}
-              </span>
-              {verdict.path}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Client Source IP</div>
-            <div className="font-mono" style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '2px' }}>
-              {verdict.client_ip}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Shield Action</div>
-            <div style={{ marginTop: '2px' }}>
-              <span className={`badge ${verdict.action === 'BLOCK' ? 'badge-block' : 'badge-allow'}`}>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  background: verdict.action === 'BLOCK' ? '#fee2e2' : '#dcfce7',
+                  color: verdict.action === 'BLOCK' ? '#dc2626' : '#16a34a',
+                }}
+              >
                 {verdict.action}
               </span>
             </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Inference Latency</div>
-            <div className="font-mono" style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '2px' }}>
-              {verdict.ml_latency_ms ? `${verdict.ml_latency_ms.toFixed(1)}ms` : '3.8ms'}
+            <div className="font-mono" style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              ID: {verdict.request_id} • IP: {verdict.client_ip} • Latency: {verdict.ml_latency_ms ? `${verdict.ml_latency_ms.toFixed(1)}ms` : '3.6ms'}
             </div>
           </div>
         </div>
 
-        {/* Two-Column Deep-Learning Section */}
+        {/* Deep Learning 2-Model Cards in Soft Pastel styling */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
           {/* Model 1: Autoencoder */}
           <div
             style={{
-              padding: '1rem',
-              borderRadius: 'var(--radius-md)',
-              background: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid var(--border-subtle)',
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-lg)',
+              background: '#f8fafc',
+              border: '1px solid var(--border-light)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.65rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.75rem' }}>
               <Cpu size={16} color="#8b5cf6" />
-              <h4 style={{ fontSize: '0.84rem', color: '#fff' }}>Deep Autoencoder (Anomaly Model)</h4>
+              <h4 style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                Deep Autoencoder (Anomaly Score)
+              </h4>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.74rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Reconstruction Error:</span>
-              <span className="font-mono" style={{ color: isAnomalous ? '#ef4444' : '#10b981', fontWeight: 700 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', marginBottom: '0.35rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Reconstruction Error:</span>
+              <strong className="font-mono" style={{ color: isAnomalous ? '#dc2626' : '#16a34a' }}>
                 {anomalyScore.toFixed(4)}
-              </span>
+              </strong>
             </div>
 
-            <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden', position: 'relative', marginBottom: '0.5rem' }}>
+            <div
+              style={{
+                width: '100%',
+                height: '8px',
+                background: '#e2e8f0',
+                borderRadius: '4px',
+                overflow: 'hidden',
+                position: 'relative',
+                marginBottom: '0.5rem',
+              }}
+            >
               <div
                 style={{
                   width: `${Math.min(anomalyScore * 100, 100)}%`,
                   height: '100%',
-                  background: isAnomalous ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : '#10b981',
+                  background: isAnomalous ? '#ef4444' : '#10b981',
                   borderRadius: '4px',
                 }}
               />
-              {/* Threshold mark */}
               <div
-                title="Anomaly Threshold: 0.280"
+                title="Threshold: 0.280"
                 style={{
                   position: 'absolute',
                   left: `${anomalyThreshold * 100}%`,
                   top: 0,
                   bottom: 0,
                   width: '2px',
-                  background: '#fff',
-                  boxShadow: '0 0 6px #fff',
+                  background: '#0f172a',
                 }}
               />
             </div>
 
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', lineHeight: 1.4 }}>
-              Baseline Threshold: <strong className="font-mono" style={{ color: '#fff' }}>0.280</strong>.
-              {isAnomalous
-                ? ' Reconstruction error heavily exceeded threshold, indicating abnormal syntax distribution.'
-                : ' Error is within clean operational bounds.'}
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Baseline Threshold: <strong>0.280</strong>. {isAnomalous ? 'Reconstruction error exceeded normal boundary.' : 'Normal payload distribution.'}
             </div>
           </div>
 
           {/* Model 2: Classifier */}
           <div
             style={{
-              padding: '1rem',
-              borderRadius: 'var(--radius-md)',
-              background: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid var(--border-subtle)',
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-lg)',
+              background: '#f8fafc',
+              border: '1px solid var(--border-light)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.65rem' }}>
-              <Brain size={16} color="#3b82f6" />
-              <h4 style={{ fontSize: '0.84rem', color: '#fff' }}>Hybrid CNN+BiLSTM Threat Class</h4>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.75rem' }}>
+              <Brain size={16} color="#0284c7" />
+              <h4 style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                CNN+BiLSTM Class Probabilities
+              </h4>
             </div>
 
             {Object.entries(probs).map(([threat, prob]) => {
@@ -242,19 +224,19 @@ export default function VerdictDetailModal({
               return (
                 <div key={threat} style={{ marginBottom: '0.45rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: '2px' }}>
-                    <span style={{ color: isMatch ? '#fff' : 'var(--text-dim)', fontWeight: isMatch ? 600 : 400 }}>
+                    <span style={{ color: isMatch ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: isMatch ? 700 : 400 }}>
                       {threat}
                     </span>
-                    <span className="font-mono" style={{ color: isMatch ? '#60a5fa' : 'var(--text-dim)' }}>
+                    <span className="font-mono" style={{ color: isMatch ? '#0284c7' : 'var(--text-muted)' }}>
                       {pct}%
                     </span>
                   </div>
-                  <div style={{ width: '100%', height: '5px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: '100%', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
                     <div
                       style={{
                         width: `${pct}%`,
                         height: '100%',
-                        background: isMatch ? '#3b82f6' : 'rgba(255,255,255,0.15)',
+                        background: isMatch ? '#0284c7' : '#cbd5e1',
                       }}
                     />
                   </div>
@@ -264,44 +246,44 @@ export default function VerdictDetailModal({
           </div>
         </div>
 
-        {/* Feature Importance (Top XAI Drivers) */}
+        {/* Feature Attribution */}
         <div style={{ marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.65rem' }}>
-            <Info size={15} color="#06b6d4" />
-            <h4 style={{ fontSize: '0.84rem', color: '#fff' }}>
-              Explainable AI Feature Attribution (Top Contributing Signals)
+            <Info size={16} color="#0284c7" />
+            <h4 style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+              Explainable AI Feature Importance (Why was it flagged?)
             </h4>
           </div>
 
           <div
             style={{
               padding: '1rem',
-              background: 'rgba(10, 15, 29, 0.8)',
-              border: '1px solid var(--border-subtle)',
+              background: '#f8fafc',
               borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-light)',
             }}
           >
             {Object.entries(features).map(([featKey, delta]) => {
               const meta = FEATURE_METADATA[featKey] || {
                 label: featKey,
-                description: 'Feature vector component',
+                description: 'Extracted vector signal',
                 unit: '',
               };
               const widthPct = Math.min((delta / 6) * 100, 100);
 
               return (
-                <div key={featKey} className="feat-bar-row">
-                  <div className="feat-bar-header">
+                <div key={featKey} style={{ marginBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '2px' }}>
                     <div>
-                      <strong style={{ color: '#fff' }}>{meta.label}</strong>
-                      <span style={{ color: 'var(--text-dim)', marginLeft: '6px' }}>({meta.description})</span>
+                      <strong>{meta.label}</strong>
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>({meta.description})</span>
                     </div>
-                    <span className="font-mono" style={{ color: '#f87171' }}>
+                    <span className="font-mono" style={{ color: '#dc2626', fontWeight: 600 }}>
                       +{delta.toFixed(2)} {meta.unit}
                     </span>
                   </div>
-                  <div className="feat-bar-track">
-                    <div className="feat-bar-fill" style={{ width: `${widthPct}%` }} />
+                  <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${widthPct}%`, height: '100%', background: '#38bdf8' }} />
                   </div>
                 </div>
               );
@@ -309,49 +291,52 @@ export default function VerdictDetailModal({
           </div>
         </div>
 
-        {/* Raw HTTP Payload Viewer with Exploit Token Highlighting */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <Terminal size={15} color="#10b981" />
-              <h4 style={{ fontSize: '0.84rem', color: '#fff' }}>Intercepted Request Body & Tokens</h4>
-            </div>
-            {highlighted.tokens.length > 0 && (
-              <span className="risk-pill risk-CRITICAL" style={{ fontSize: '0.68rem' }}>
-                {highlighted.tokens.length} Malicious Pattern(s) Highlighted
-              </span>
-            )}
+        {/* Raw Payload Block */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.45rem' }}>
+            <Terminal size={15} color="#475569" />
+            <h4 style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+              Intercepted Request Payload
+            </h4>
           </div>
 
           <div
-            className="code-block"
+            style={{
+              background: '#0f172a',
+              color: '#f8fafc',
+              padding: '1rem',
+              borderRadius: 'var(--radius-md)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.78rem',
+              overflowX: 'auto',
+            }}
             dangerouslySetInnerHTML={{
               __html: highlighted.hasSuspiciousTokens
                 ? highlighted.annotatedHtml
-                : rawPayload || '(Empty HTTP payload body)',
+                : rawPayload || '(Clean GET request with empty payload body)',
             }}
           />
         </div>
 
-        {/* Modal Action Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
-          <button className="btn-secondary" onClick={handleCopyId}>
-            {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-            <span>{copied ? 'Copied ID' : 'Copy Request ID'}</span>
+        {/* Footer Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
+          <button className="hub-btn-secondary" onClick={handleCopyId}>
+            {copied ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
+            <span>{copied ? 'Copied' : 'Copy Correlation ID'}</span>
           </button>
 
           <div style={{ display: 'flex', gap: '0.65rem' }}>
             <button
-              className="btn-danger"
+              className="hub-btn-danger"
               onClick={handleManualBan}
               disabled={isBanning || bannedDone}
             >
               <Ban size={14} />
-              <span>{bannedDone ? 'IP Blocked in Redis' : isBanning ? 'Banning IP...' : `Block IP ${verdict.client_ip}`}</span>
+              <span>{bannedDone ? 'IP Banned in Redis' : isBanning ? 'Banning...' : `Ban IP ${verdict.client_ip}`}</span>
             </button>
 
-            <button className="btn-primary" onClick={onClose}>
-              <span>Close Dossier</span>
+            <button className="hub-btn-primary" onClick={onClose}>
+              Close
             </button>
           </div>
         </div>

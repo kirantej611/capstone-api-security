@@ -2,12 +2,9 @@ node_modules/
 __pycache__/
 *.pyc
 .env
-.env*.local
 .venv
 venv/
 dist/
 build/
-.next/
 .DS_Store
 *.log
-

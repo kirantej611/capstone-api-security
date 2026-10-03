@@ -4,16 +4,12 @@ import React, { useState } from 'react';
 import {
   Zap,
   Shield,
-  ShieldAlert,
   Flame,
-  Play,
-  RotateCcw,
   CheckCircle,
-  XCircle,
+  AlertTriangle,
   Clock,
   Sparkles,
   Terminal,
-  AlertTriangle,
 } from 'lucide-react';
 import { ATTACK_SCENARIOS } from '../lib/xaiUtils';
 import { executeSimulatedRequest } from '../lib/api';
@@ -65,7 +61,7 @@ export default function AttackSimulatorPanel({
         onNewVerdictRecorded(res.verdict);
       }
     } catch (err) {
-      console.error('Failed to trigger attack scenario:', err);
+      console.error(err);
     } finally {
       setIsRunning(false);
     }
@@ -73,10 +69,9 @@ export default function AttackSimulatorPanel({
 
   const runAutomatedPresentation = async () => {
     setNarrativeRunning(true);
-
     const sequence = [
       { id: 'normal-customer-flow', text: '1/4: Simulating clean legitimate customer traffic...' },
-      { id: 'sqli-auth-bypass', text: "2/4: Simulating SQL Injection auth bypass on login..." },
+      { id: 'sqli-auth-bypass', text: '2/4: Simulating SQL Injection auth bypass on /api/login...' },
       { id: 'xss-product-review', text: '3/4: Simulating Stored XSS cookie stealer injection...' },
       { id: 'credential-stuffing-burst', text: '4/4: Simulating rapid credential stuffing burst...' },
     ];
@@ -87,104 +82,89 @@ export default function AttackSimulatorPanel({
       if (sc) {
         setSelectedScenario(sc);
         await runAttack(sc, true);
-        await new Promise((r) => setTimeout(r, 2200));
+        await new Promise((r) => setTimeout(r, 2000));
       }
     }
 
-    setNarrativeStep('Automated Demo Complete. All threats successfully neutralized!');
+    setNarrativeStep('Automated Demo Completed! All attacks neutralized.');
     setTimeout(() => {
       setNarrativeRunning(false);
       setNarrativeStep('');
-    }, 3000);
+    }, 2500);
   };
 
   return (
-    <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-      {/* Panel Top Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          marginBottom: '1.25rem',
-          borderBottom: '1px solid var(--border-subtle)',
-          paddingBottom: '1rem',
-        }}
-      >
-        <div className="panel-title-wrap">
-          <Zap size={22} color="#f59e0b" />
-          <div>
-            <h2 className="panel-title" style={{ fontSize: '1.15rem' }}>
-              Interactive Attack Simulation Studio & Business Demo Suite
-            </h2>
-            <span className="panel-subtitle">
-              Validate deep-learning defense efficacy in real-time • Compare Protected vs Unprotected impact
-            </span>
-          </div>
+    <div className="white-card">
+      <div className="card-header-row" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <h3 className="card-title">Attack Simulation Studio & Demo Suite</h3>
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+            Compare Protected with AI Shield (:8080) vs Direct Unprotected Victim (:8081)
+          </span>
         </div>
 
         <button
-          className="btn-primary"
+          className="hub-btn-primary"
           onClick={runAutomatedPresentation}
           disabled={isRunning || narrativeRunning}
-          style={{
-            background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-            boxShadow: '0 0 20px rgba(139, 92, 246, 0.4)',
-          }}
         >
-          <Sparkles size={15} />
-          <span>{narrativeRunning ? narrativeStep : 'Run 30-Second Executive Demo Narrative'}</span>
+          <Sparkles size={14} />
+          <span>{narrativeRunning ? narrativeStep : 'Run 30s Executive Demo Narrative'}</span>
         </button>
       </div>
 
-      {/* Scenario Selection Grid */}
-      <div className="scenario-grid">
+      {/* Scenario Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
         {ATTACK_SCENARIOS.map((sc) => {
           const isSelected = selectedScenario.id === sc.id;
           return (
             <div
               key={sc.id}
-              className="scenario-card"
-              style={{
-                borderColor: isSelected ? 'var(--accent-blue)' : 'var(--border-subtle)',
-                background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'rgba(15, 23, 42, 0.6)',
-              }}
               onClick={() => setSelectedScenario(sc)}
+              style={{
+                borderRadius: 'var(--radius-lg)',
+                padding: '1.25rem',
+                background: isSelected ? 'var(--accent-cyan-light)' : '#f8fafc',
+                border: `1px solid ${isSelected ? '#38bdf8' : 'var(--border-light)'}`,
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                transition: 'all 0.15s ease',
+              }}
             >
               <div>
-                <div className="scenario-header">
-                  <h4 style={{ color: '#fff', fontSize: '0.88rem', fontWeight: 600 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                     {sc.title}
                   </h4>
-                  <span className={`risk-pill risk-${sc.severity}`}>{sc.severity}</span>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: sc.severity === 'CRITICAL' ? '#fee2e2' : '#fef3c7',
+                      color: sc.severity === 'CRITICAL' ? '#dc2626' : '#d97706',
+                    }}
+                  >
+                    {sc.severity}
+                  </span>
                 </div>
 
-                <div
-                  className="font-mono"
-                  style={{
-                    fontSize: '0.72rem',
-                    color: '#93c5fd',
-                    marginBottom: '0.5rem',
-                    background: 'rgba(0,0,0,0.3)',
-                    padding: '3px 6px',
-                    borderRadius: '4px',
-                    display: 'inline-block',
-                  }}
-                >
+                <div className="font-mono" style={{ fontSize: '0.72rem', color: '#0284c7', marginBottom: '0.5rem' }}>
                   {sc.method} {sc.targetEndpoint}
                 </div>
 
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                   {sc.description}
                 </p>
               </div>
 
-              <div className="scenario-btn-group">
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                 <button
-                  className="btn-primary"
-                  style={{ flex: 1, padding: '0.45rem 0.6rem' }}
+                  className="hub-btn-primary"
+                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem', justifyContent: 'center' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedScenario(sc);
@@ -193,22 +173,21 @@ export default function AttackSimulatorPanel({
                   disabled={isRunning}
                 >
                   <Shield size={13} />
-                  <span>With AI Shield (:8080)</span>
+                  <span>With Shield</span>
                 </button>
 
                 <button
-                  className="btn-danger"
-                  style={{ padding: '0.45rem 0.6rem' }}
+                  className="hub-btn-danger"
+                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', justifyContent: 'center' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedScenario(sc);
                     runAttack(sc, false);
                   }}
                   disabled={isRunning}
-                  title="Fire directly at vulnerable victim backend"
                 >
                   <Flame size={13} />
-                  <span>Direct (:8081)</span>
+                  <span>Direct</span>
                 </button>
               </div>
             </div>
@@ -216,119 +195,94 @@ export default function AttackSimulatorPanel({
         })}
       </div>
 
-      {/* Live A/B Execution Console */}
+      {/* Response Telemetry Callout */}
       {lastResult && (
         <div
           style={{
             marginTop: '1.5rem',
             padding: '1.25rem',
             borderRadius: 'var(--radius-lg)',
-            background: '#070c18',
+            background: '#ffffff',
             border: `1px solid ${
               lastResult.mode === 'SHIELD' && lastResult.statusCode === 403
-                ? 'rgba(16, 185, 129, 0.4)'
-                : lastResult.mode === 'UNPROTECTED' && lastResult.statusCode === 200 && lastResult.scenario.category !== 'Normal'
-                ? 'rgba(239, 68, 68, 0.4)'
-                : 'rgba(59, 130, 246, 0.3)'
+                ? '#10b981'
+                : lastResult.mode === 'UNPROTECTED' && lastResult.scenario.category !== 'Normal'
+                ? '#ef4444'
+                : '#0284c7'
             }`,
+            boxShadow: '0 4px 15px rgba(0,0,0,0.04)',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem',
-              flexWrap: 'wrap',
-              gap: '0.5rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <Terminal size={18} color="#60a5fa" />
-              <div>
-                <h3 style={{ fontSize: '0.95rem', color: '#fff' }}>
-                  Execution Response Telemetry — {lastResult.scenario.title}
-                </h3>
-                <span className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                  Target: {lastResult.mode === 'SHIELD' ? 'API Gateway Shield (:8080)' : 'Unprotected Victim Backend (:8081)'} • {lastResult.timestamp}
-                </span>
-              </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Terminal size={17} color="#0284c7" />
+              <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                {lastResult.scenario.title} — {lastResult.mode === 'SHIELD' ? 'Protected by AI Shield (:8080)' : 'Direct to Vulnerable Victim (:8081)'}
+              </strong>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div className="font-mono" style={{ fontSize: '0.8rem', color: '#93c5fd' }}>
-                <Clock size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                {lastResult.latencyMs}ms roundtrip
-              </div>
-
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <span className="font-mono" style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                <Clock size={12} style={{ display: 'inline', marginRight: '3px' }} />
+                {lastResult.latencyMs}ms
+              </span>
               <span
-                className={`badge ${
-                  lastResult.statusCode === 403
-                    ? 'badge-block'
-                    : lastResult.statusCode === 200
-                    ? 'badge-allow'
-                    : 'badge-rate-limit'
-                }`}
-                style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                style={{
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  background: lastResult.statusCode === 403 ? '#fee2e2' : '#dcfce7',
+                  color: lastResult.statusCode === 403 ? '#dc2626' : '#16a34a',
+                }}
               >
                 HTTP {lastResult.statusCode}
               </span>
             </div>
           </div>
 
-          {/* Business Comparison Callout Box */}
           <div
             style={{
-              padding: '0.85rem 1rem',
+              padding: '0.85rem',
               borderRadius: 'var(--radius-md)',
-              marginBottom: '1rem',
               background:
                 lastResult.mode === 'SHIELD' && lastResult.statusCode === 403
-                  ? 'rgba(16, 185, 129, 0.1)'
+                  ? '#ecfdf5'
                   : lastResult.mode === 'UNPROTECTED' && lastResult.scenario.category !== 'Normal'
-                  ? 'rgba(239, 68, 68, 0.15)'
-                  : 'rgba(59, 130, 246, 0.1)',
-              border: `1px solid ${
-                lastResult.mode === 'SHIELD' && lastResult.statusCode === 403
-                  ? 'rgba(16, 185, 129, 0.3)'
-                  : lastResult.mode === 'UNPROTECTED' && lastResult.scenario.category !== 'Normal'
-                  ? 'rgba(239, 68, 68, 0.3)'
-                  : 'rgba(59, 130, 246, 0.3)'
-              }`,
+                  ? '#fef2f2'
+                  : '#f0f9ff',
+              marginBottom: '0.85rem',
+              fontSize: '0.76rem',
+              lineHeight: 1.45,
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {lastResult.mode === 'SHIELD' && lastResult.statusCode === 403 ? (
-                <>
-                  <CheckCircle size={15} color="#10b981" />
-                  <span style={{ color: '#6ee7b7' }}>AI Shield Successfully Defended Asset!</span>
-                </>
-              ) : lastResult.mode === 'UNPROTECTED' && lastResult.scenario.category !== 'Normal' ? (
-                <>
-                  <AlertTriangle size={15} color="#ef4444" />
-                  <span style={{ color: '#fca5a5' }}>VULNERABILITY EXPLOITED! (Direct Target Breached)</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle size={15} color="#3b82f6" />
-                  <span style={{ color: '#93c5fd' }}>Legitimate Traffic Cleanly Delivered</span>
-                </>
-              )}
-            </div>
-
-            <p style={{ fontSize: '0.75rem', color: '#e2e8f0', lineHeight: 1.45 }}>
-              {lastResult.mode === 'SHIELD'
-                ? lastResult.scenario.explanation
-                : 'Without the AI Shield gateway in front, the victim application blindly executed the malicious input against the PostgreSQL database or system shell, resulting in unauthorized data exposure.'}
-            </p>
+            <strong>
+              {lastResult.mode === 'SHIELD' && lastResult.statusCode === 403
+                ? 'AI Gateway Intercepted Threat:'
+                : lastResult.mode === 'UNPROTECTED' && lastResult.scenario.category !== 'Normal'
+                ? 'Security Breach Notice:'
+                : 'Request Result:'}
+            </strong>{' '}
+            {lastResult.mode === 'SHIELD'
+              ? lastResult.scenario.explanation
+              : 'Without the AI Shield, backend executed unescaped query directly against PostgreSQL! Unauthorized data exposed.'}
           </div>
 
-          {/* Response Raw Body */}
-          <div className="code-block" style={{ maxHeight: '180px' }}>
+          <pre
+            style={{
+              background: '#0f172a',
+              color: '#f8fafc',
+              padding: '0.85rem',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.74rem',
+              fontFamily: 'var(--font-mono)',
+              overflowX: 'auto',
+            }}
+          >
             {typeof lastResult.body === 'object'
               ? JSON.stringify(lastResult.body, null, 2)
               : lastResult.body}
-          </div>
+          </pre>
         </div>
       )}
     </div>

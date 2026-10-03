@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import KpiCards from '../components/KpiCards';
-import LiveTrafficChart from '../components/LiveTrafficChart';
-import ThreatRadar from '../components/ThreatRadar';
+import DonutChartCard from '../components/DonutChartCard';
+import AttendanceChartCard from '../components/AttendanceChartCard';
+import CalendarStrip from '../components/CalendarStrip';
+import AgendaAlertsCard from '../components/AgendaAlertsCard';
+import RecentMessagesCard from '../components/RecentMessagesCard';
 import VerdictFeed from '../components/VerdictFeed';
 import VerdictDetailModal from '../components/VerdictDetailModal';
 import AttackSimulatorPanel from '../components/AttackSimulatorPanel';
@@ -19,12 +23,13 @@ import {
   localStore,
 } from '../lib/api';
 import { BlockedIPEntry, GatewayStats, RecentVerdict } from '../lib/types';
-import { FEATURE_METADATA } from '../lib/xaiUtils';
 import { INITIAL_STATS, INITIAL_VERDICTS, INITIAL_BLOCKED_IPS } from '../lib/mockData';
-import { Cpu, Terminal, ArrowRight, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { FEATURE_METADATA } from '../lib/xaiUtils';
+import { Cpu, ArrowRight } from 'lucide-react';
 
-export default function SecurityDashboardPage() {
-  const [activeTab, setActiveTab] = useState<string>('command-center');
+export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [stats, setStats] = useState<GatewayStats>(INITIAL_STATS);
   const [verdicts, setVerdicts] = useState<RecentVerdict[]>(INITIAL_VERDICTS);
   const [blockedIps, setBlockedIps] = useState<BlockedIPEntry[]>(INITIAL_BLOCKED_IPS);
@@ -32,13 +37,11 @@ export default function SecurityDashboardPage() {
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
   const [selectedVerdict, setSelectedVerdict] = useState<RecentVerdict | null>(null);
 
-  // Custom XAI Sandbox Tester state
+  // XAI Sandbox state
   const [testUrl, setTestUrl] = useState('/api/login');
-  const [testMethod, setTestMethod] = useState<'GET' | 'POST'>('POST');
   const [testBody, setTestBody] = useState('{"username": "admin\' OR \'1\'=\'1\' --", "password": "123"}');
   const [testResult, setTestResult] = useState<any>(null);
 
-  // Load telemetry from Gateway / local store
   const refreshTelemetry = useCallback(async () => {
     const statsRes = await fetchGatewayStats();
     const verdictsRes = await fetchRecentVerdicts();
@@ -56,13 +59,12 @@ export default function SecurityDashboardPage() {
     return () => clearInterval(interval);
   }, [refreshTelemetry]);
 
-  // Periodic simulated live events when streaming is active
+  // Periodic streaming events
   useEffect(() => {
     if (!isStreaming) return;
 
     const streamInterval = setInterval(() => {
-      // 80% normal traffic, 20% occasional stealth attack
-      const isAttack = Math.random() > 0.8;
+      const isAttack = Math.random() > 0.75;
       const attackTypes: ('SQLi' | 'XSS' | 'Path Traversal' | 'Command Injection')[] = [
         'SQLi',
         'XSS',
@@ -181,243 +183,265 @@ export default function SecurityDashboardPage() {
   };
 
   return (
-    <div className="dashboard-container">
-      {/* Top SOC Navigation Header */}
-      <Header
+    <div className="hub-layout">
+      {/* Left Sidebar matching SchoolHub template */}
+      <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        isLive={isLive}
-        isStreaming={isStreaming}
-        setIsStreaming={setIsStreaming}
-        onRefresh={refreshTelemetry}
         blockedCount={blockedIps.length}
       />
 
-      {/* KPI Metric Strip (Always visible for executive overview) */}
-      <KpiCards stats={stats} />
+      {/* Main Content Area */}
+      <main className="hub-main">
+        {/* Top Search & User Chip Header */}
+        <Header
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          isStreaming={isStreaming}
+          setIsStreaming={setIsStreaming}
+          onRefresh={refreshTelemetry}
+          isLive={isLive}
+        />
 
-      {/* VIEW 1: COMMAND CENTER (Default SOC View) */}
-      {activeTab === 'command-center' && (
-        <>
-          <div className="main-grid">
-            <LiveTrafficChart />
-            <ThreatRadar verdicts={verdicts} />
-          </div>
+        {/* 1. DASHBOARD VIEW (Exact match to screenshot template) */}
+        {activeTab === 'dashboard' && (
+          <>
+            {/* 4 Pastel Top Cards: Purple, Yellow, Blue, Orange */}
+            <KpiCards stats={stats} />
 
+            {/* Content Split: Left Charts & Table + Right Calendar Column */}
+            <div className="hub-content-split">
+              {/* Left Column: Donut + Attendance + Table */}
+              <div>
+                <div className="hub-charts-row">
+                  {/* Concentric Double-Ring Donut Card */}
+                  <DonutChartCard verdicts={verdicts} />
+
+                  {/* Attendance Multi-Bar Chart with 95% Tooltip */}
+                  <AttendanceChartCard />
+                </div>
+
+                {/* Real-time Threat Stream Table */}
+                <VerdictFeed
+                  verdicts={verdicts}
+                  onSelectVerdict={(v) => setSelectedVerdict(v)}
+                  searchFilter={searchQuery}
+                />
+              </div>
+
+              {/* Right Column: Calendar Strip + Agenda + Messages */}
+              <div className="right-column-stack">
+                <CalendarStrip />
+                <AgendaAlertsCard
+                  onSelectAlert={(title) => {
+                    const match = verdicts.find((v) => v.action === 'BLOCK');
+                    if (match) setSelectedVerdict(match);
+                  }}
+                />
+                <RecentMessagesCard
+                  verdicts={verdicts}
+                  onSelectVerdict={(v) => setSelectedVerdict(v)}
+                  onViewAll={() => setActiveTab('verdicts')}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 2. ATTACK STUDIO VIEW */}
+        {activeTab === 'simulator' && (
+          <AttackSimulatorPanel
+            onNewVerdictRecorded={(v) => {
+              setVerdicts((prev) => [v, ...prev]);
+              refreshTelemetry();
+            }}
+          />
+        )}
+
+        {/* 3. LIVE STREAM VIEW */}
+        {activeTab === 'verdicts' && (
           <VerdictFeed
             verdicts={verdicts}
             onSelectVerdict={(v) => setSelectedVerdict(v)}
+            searchFilter={searchQuery}
           />
-        </>
-      )}
+        )}
 
-      {/* VIEW 2: ATTACK SIMULATOR STUDIO */}
-      {activeTab === 'simulator' && (
-        <AttackSimulatorPanel
-          onNewVerdictRecorded={(v) => {
-            setVerdicts((prev) => [v, ...prev]);
-            refreshTelemetry();
-          }}
-        />
-      )}
-
-      {/* VIEW 3: EXPLAINABLE AI (XAI) DEEP DIVE */}
-      {activeTab === 'xai' && (
-        <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-          <div className="panel-header" style={{ marginBottom: '1.25rem' }}>
-            <div className="panel-title-wrap">
-              <Cpu size={22} color="#8b5cf6" />
+        {/* 4. EXPLAINABLE AI VIEW */}
+        {activeTab === 'xai' && (
+          <div className="white-card">
+            <div className="card-header-row">
               <div>
-                <h2 className="panel-title" style={{ fontSize: '1.15rem' }}>
-                  Explainable AI (XAI) Model Architecture & Feature Engineering
-                </h2>
-                <span className="panel-subtitle">
-                  18-Dimensional Feature Extractor • Deep Autoencoder Anomaly Scoring • Hybrid CNN+BiLSTM Classifier
+                <h3 className="card-title">Explainable AI (XAI) Model Architecture & Features</h3>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                  Deep Autoencoder 0.280 Threshold • Hybrid CNN+BiLSTM Classification • 18-Feature Vector
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* Model Architecture Explanations */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            {/* Sandbox */}
             <div
               style={{
                 padding: '1.25rem',
-                borderRadius: 'var(--radius-md)',
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                background: '#f8fafc',
+                border: '1px solid var(--border-light)',
+                marginBottom: '1.5rem',
               }}
             >
-              <h3 style={{ fontSize: '0.95rem', color: '#fff', marginBottom: '0.5rem' }}>
-                1. Deep Autoencoder (Zero-Day Anomaly Detection)
-              </h3>
-              <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
-                Trained strictly on clean baseline traffic. Incoming requests are passed through an 18→64→32→16→8 bottleneck. If reconstruction error exceeds threshold <strong>0.280</strong>, the request is flagged as an anomalous deviation.
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                Live Neural Feature Extraction & Inference Sandbox
+              </h4>
+              <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                Test any custom HTTP URL and payload to observe real-time feature extraction and prediction.
               </p>
-              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#6ee7b7' }}>
-                Architecture: Linear(18→64) → ReLU → Linear(64→32) → Linear(32→8) → Decoder
-              </div>
-            </div>
 
-            <div
-              style={{
-                padding: '1.25rem',
-                borderRadius: 'var(--radius-md)',
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <h3 style={{ fontSize: '0.95rem', color: '#fff', marginBottom: '0.5rem' }}>
-                2. Hybrid CNN + BiLSTM with Self-Attention
-              </h3>
-              <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
-                Combines 1D Convolutions for local n-gram token detection with a Bidirectional LSTM to capture sequential syntax context, outputting classification probabilities across 5 distinct threat classes.
-              </p>
-              <div className="font-mono" style={{ fontSize: '0.72rem', color: '#93c5fd' }}>
-                Classes: Normal, SQLi, XSS, Path Traversal, Command Injection
-              </div>
-            </div>
-          </div>
-
-          {/* Live Feature Extraction Sandbox */}
-          <div
-            style={{
-              padding: '1.25rem',
-              borderRadius: 'var(--radius-md)',
-              background: '#0a0f1d',
-              border: '1px solid var(--border-glow-blue)',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <h3 style={{ fontSize: '0.95rem', color: '#fff', marginBottom: '0.35rem' }}>
-              Live Neural Feature Extraction & Inference Sandbox
-            </h3>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
-              Type or paste any URL and body to observe real-time feature extraction and ML classification.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                  Target Endpoint
-                </label>
-                <input
-                  type="text"
-                  value={testUrl}
-                  onChange={(e) => setTestUrl(e.target.value)}
-                  className="search-input font-mono"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                  Payload Body (JSON / Query)
-                </label>
-                <input
-                  type="text"
-                  value={testBody}
-                  onChange={(e) => setTestBody(e.target.value)}
-                  className="search-input font-mono"
-                  style={{ width: '100%' }}
-                />
-              </div>
-            </div>
-
-            <button className="btn-primary" onClick={handleTestPayload}>
-              <span>Run Neural Inference</span>
-              <ArrowRight size={14} />
-            </button>
-
-            {testResult && (
-              <div
-                style={{
-                  marginTop: '1.25rem',
-                  padding: '1rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid var(--border-subtle)',
-                }}
-              >
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <span className={`risk-pill risk-${testResult.risk_level}`}>
-                    {testResult.risk_level}
-                  </span>
-                  <span style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 600 }}>
-                    Predicted Threat: {testResult.threat_type} ({(testResult.confidence * 100).toFixed(1)}% confidence)
-                  </span>
-                  <span className="font-mono" style={{ fontSize: '0.76rem', color: '#6ee7b7' }}>
-                    Reconstruction Error: {testResult.anomaly_score}
-                  </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Target Endpoint
+                  </label>
+                  <input
+                    type="text"
+                    value={testUrl}
+                    onChange={(e) => setTestUrl(e.target.value)}
+                    className="hub-search-input font-mono"
+                    style={{ width: '100%', paddingLeft: '1rem' }}
+                  />
                 </div>
 
-                <div className="code-block" style={{ fontSize: '0.74rem' }}>
-                  {JSON.stringify(testResult.features, null, 2)}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Payload Body
+                  </label>
+                  <input
+                    type="text"
+                    value={testBody}
+                    onChange={(e) => setTestBody(e.target.value)}
+                    className="hub-search-input font-mono"
+                    style={{ width: '100%', paddingLeft: '1rem' }}
+                  />
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* 18 Features Specification Table */}
-          <h3 style={{ fontSize: '0.95rem', color: '#fff', marginBottom: '0.75rem' }}>
-            Complete 18-Feature Vector Taxonomy
-          </h3>
-          <div className="table-wrap">
-            <table className="verdict-table">
-              <thead>
-                <tr>
-                  <th>Feature Index</th>
-                  <th>Internal Identifier</th>
-                  <th>Human-Readable Description</th>
-                  <th>Clean Baseline</th>
-                  <th>Unit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(FEATURE_METADATA).map(([key, meta], idx) => (
-                  <tr key={key}>
-                    <td className="font-mono" style={{ color: 'var(--text-dim)' }}>
-                      #{idx + 1}
-                    </td>
-                    <td className="font-mono" style={{ color: '#93c5fd', fontWeight: 600 }}>
-                      {key}
-                    </td>
-                    <td style={{ color: '#e2e8f0' }}>{meta.description}</td>
-                    <td className="font-mono" style={{ color: '#10b981' }}>
-                      {meta.normalBaseline}
-                    </td>
-                    <td className="font-mono" style={{ color: 'var(--text-dim)' }}>
-                      {meta.unit}
-                    </td>
+              <button className="hub-btn-primary" onClick={handleTestPayload}>
+                <span>Run Neural Inference</span>
+                <ArrowRight size={14} />
+              </button>
+
+              {testResult && (
+                <div
+                  style={{
+                    marginTop: '1.25rem',
+                    padding: '1rem',
+                    background: '#ffffff',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: testResult.risk_level === 'CRITICAL' ? '#fee2e2' : '#fef3c7',
+                        color: testResult.risk_level === 'CRITICAL' ? '#dc2626' : '#d97706',
+                      }}
+                    >
+                      {testResult.risk_level}
+                    </span>
+                    <strong style={{ fontSize: '0.85rem' }}>
+                      Predicted: {testResult.threat_type} ({(testResult.confidence * 100).toFixed(1)}% confidence)
+                    </strong>
+                    <span className="font-mono" style={{ fontSize: '0.76rem', color: '#16a34a' }}>
+                      Reconstruction Error: {testResult.anomaly_score}
+                    </span>
+                  </div>
+
+                  <pre style={{ background: '#0f172a', color: '#f8fafc', padding: '0.75rem', borderRadius: 'var(--radius-sm)', fontSize: '0.72rem', fontFamily: 'var(--font-mono)' }}>
+                    {JSON.stringify(testResult.features, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* 18 Features Table */}
+            <h4 style={{ fontSize: '0.92rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+              18-Dimensional Feature Vector Taxonomy
+            </h4>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="hub-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Identifier</th>
+                    <th>Description</th>
+                    <th>Clean Baseline</th>
+                    <th>Unit</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {Object.entries(FEATURE_METADATA).map(([k, m], i) => (
+                    <tr key={k}>
+                      <td className="font-mono" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                      <td className="font-mono" style={{ color: '#0284c7', fontWeight: 600 }}>{k}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{m.description}</td>
+                      <td className="font-mono" style={{ color: '#16a34a' }}>{m.normalBaseline}</td>
+                      <td className="font-mono" style={{ color: 'var(--text-muted)' }}>{m.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* VIEW 4: REDIS BLOCKLIST */}
-      {activeTab === 'blocklist' && (
-        <BlocklistManager
-          blockedIps={blockedIps}
-          onRefreshList={refreshTelemetry}
-        />
-      )}
+        {/* 5. REDIS BLOCKLIST VIEW */}
+        {activeTab === 'blocklist' && (
+          <BlocklistManager
+            blockedIps={blockedIps}
+            onRefreshList={refreshTelemetry}
+          />
+        )}
 
-      {/* VIEW 5: VICTIM STOREFRONT SHOWCASE */}
-      {activeTab === 'victim' && <StorefrontPreview />}
+        {/* 6. VICTIM STOREFRONT VIEW */}
+        {activeTab === 'victim' && <StorefrontPreview />}
 
-      {/* VIEW 6: SYSTEM TOPOLOGY */}
-      {activeTab === 'topology' && <TopologyMap />}
+        {/* 7. SYSTEM TOPOLOGY VIEW */}
+        {activeTab === 'topology' && <TopologyMap />}
+
+        {/* 8. PROFILE / SETTINGS VIEW */}
+        {(activeTab === 'profile' || activeTab === 'settings') && (
+          <div className="white-card">
+            <h3 className="card-title">Security Gateway Configuration</h3>
+            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.25rem', marginBottom: '1rem' }}>
+              Perimeter policy, rate limits, and risk thresholds
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+              <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Rate Limit Window</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '2px' }}>60 Seconds (100 req max)</div>
+              </div>
+              <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Blocklist TTL</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '2px' }}>3600 Seconds (1 Hour)</div>
+              </div>
+              <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Auto-Block Threshold</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '2px' }}>CRITICAL & HIGH</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
 
       {/* Forensic Dossier Modal */}
       <VerdictDetailModal
         verdict={selectedVerdict}
         onClose={() => setSelectedVerdict(null)}
-        onBlockIpSuccess={(ip) => {
-          refreshTelemetry();
-        }}
+        onBlockIpSuccess={() => refreshTelemetry()}
       />
     </div>
   );

