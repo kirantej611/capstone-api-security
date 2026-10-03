@@ -39,6 +39,25 @@ services:
       POSTGRES_DB: capstone_db
     ports:
       - "5432:5432"
+    volumes:
+      - ./victim-ecommerce/db/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh
 
   # Define your custom services here in future phases
   # e.g., api-gateway, ml-engine, etc.
+  
+  victim-ecommerce:
+    build: ./victim-ecommerce
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: admin
+      DATABASE_PASSWORD: password
+      DATABASE_NAME: victim_ecommerce_db
+      MAINTENANCE_DB: postgres
+      JWT_SECRET: super-secret-key-123
+      VULN_MODE: "true"
+    depends_on:
+      - postgres
+      - redis
