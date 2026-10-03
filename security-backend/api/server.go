@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -15,10 +16,10 @@ func StartServer(port string) {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
-	// CORS — allow the security-dashboard (Member 4) to call us from any origin
+	// CORS — allow the security-dashboard to call us from any origin
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -27,21 +28,35 @@ func StartServer(port string) {
 		c.Next()
 	})
 
+	// REST API
 	api := r.Group("/api")
 	{
-		api.GET("/health",    healthCheck)
-		api.GET("/alerts",    getAlerts)
+		api.GET("/health", healthCheck)
+		api.GET("/alerts", getAlerts)
 		api.GET("/blocklist", getBlocklist)
-		api.GET("/risk/:ip",  getRiskScore)
+		api.GET("/risk/:ip", getRiskScore)
 		api.DELETE("/block/:ip", unblockIP)
+		api.POST("/block/:ip", blockIP)
+		api.GET("/stats", getStats)
+		api.GET("/alerts/stream", sseAlerts)
 	}
+
+	// WebSocket endpoint (outside /api group — direct path)
+	r.GET("/ws/alerts", func(c *gin.Context) {
+		HandleWebSocket(c.Writer, c.Request)
+	})
 
 	r.Run(":" + port)
 }
 
 // GET /api/health
 func healthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "security-backend"})
+	wsClients := AlertHub.ClientCount()
+	c.JSON(http.StatusOK, gin.H{
+		"status":     "ok",
+		"service":    "security-backend",
+		"ws_clients": wsClients,
+	})
 }
 
 // GET /api/alerts?limit=50
@@ -77,7 +92,7 @@ func getBlocklist(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"blocked_ips": ips, "count": len(ips)})
 }
 
-// GET /api/risk/:ip — returns the current cumulative risk score for an IP
+// GET /api/risk/:ip
 func getRiskScore(c *gin.Context) {
 	ip := c.Param("ip")
 	ctx := context.Background()
@@ -89,17 +104,11 @@ func getRiskScore(c *gin.Context) {
 	}
 	score, _ := strconv.ParseFloat(scoreStr, 64)
 
-	// Check if currently blocked
 	blocked, _ := rdb.Client.Exists(ctx, fmt.Sprintf("blocklist:%s", ip)).Result()
-
-	c.JSON(http.StatusOK, gin.H{
-		"ip":         ip,
-		"score":      score,
-		"is_blocked": blocked > 0,
-	})
+	c.JSON(http.StatusOK, gin.H{"ip": ip, "score": score, "is_blocked": blocked > 0})
 }
 
-// DELETE /api/block/:ip — manually unblock an IP (admin action)
+// DELETE /api/block/:ip — unblock an IP
 func unblockIP(c *gin.Context) {
 	ip := c.Param("ip")
 	ctx := context.Background()
@@ -109,10 +118,89 @@ func unblockIP(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	if deleted == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("IP %s was not blocked", ip)})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("IP %s unblocked successfully", ip)})
+	c.JSON(http.StatusOK, gin.H{"status": "unblocked", "ip": ip})
+}
+
+// POST /api/block/:ip — manually block an IP
+func blockIP(c *gin.Context) {
+	ip := c.Param("ip")
+	if err := rdb.BlockIP(ip); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "blocked", "ip": ip})
+}
+
+// GET /api/stats — aggregate attack statistics for the dashboard
+func getStats(c *gin.Context) {
+	stats, err := db.GetAlertStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	blockedIPs, _ := rdb.GetBlocklist()
+	blockedCount := 0
+	if blockedIPs != nil {
+		blockedCount = len(blockedIPs)
+	}
+
+	stats["active_blocked_ips"] = blockedCount
+	stats["ws_clients"] = AlertHub.ClientCount()
+	c.JSON(http.StatusOK, stats)
+}
+
+// GET /api/alerts/stream — SSE endpoint for browsers that don't support WebSocket
+func sseAlerts(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Subscribe to alerts via a channel
+	alertCh := make(chan string, 10)
+	SSESubscribers.Add(alertCh)
+	defer SSESubscribers.Remove(alertCh)
+
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case msg := <-alertCh:
+			c.SSEvent("alert", msg)
+			return true
+		case <-c.Request.Context().Done():
+			return false
+		}
+	})
+}
+
+// SSESubscribers manages SSE client channels
+var SSESubscribers = &sseManager{
+	channels: make(map[chan string]bool),
+}
+
+type sseManager struct {
+	channels map[chan string]bool
+}
+
+func (s *sseManager) Add(ch chan string) {
+	s.channels[ch] = true
+}
+
+func (s *sseManager) Remove(ch chan string) {
+	delete(s.channels, ch)
+	close(ch)
+}
+
+func (s *sseManager) Broadcast(msg string) {
+	for ch := range s.channels {
+		select {
+		case ch <- msg:
+		default:
+			// Skip slow clients
+		}
+	}
 }

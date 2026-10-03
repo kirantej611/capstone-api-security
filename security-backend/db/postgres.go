@@ -66,3 +66,45 @@ func GetRecentAlerts(limit int) ([]models.Alert, error) {
 	}
 	return alerts, nil
 }
+
+func GetAlertStats() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	var totalAlerts int
+	err := DB.QueryRow(`SELECT COUNT(*) FROM alerts`).Scan(&totalAlerts)
+	if err != nil {
+		totalAlerts = 0
+	}
+	stats["total_alerts"] = totalAlerts
+
+	var highCritical int
+	err = DB.QueryRow(`SELECT COUNT(*) FROM alerts WHERE severity IN ('HIGH', 'CRITICAL')`).Scan(&highCritical)
+	if err != nil {
+		highCritical = 0
+	}
+	stats["high_critical_alerts"] = highCritical
+
+	var recent24h int
+	err = DB.QueryRow(`SELECT COUNT(*) FROM alerts WHERE timestamp >= NOW() - INTERVAL '24 hours'`).Scan(&recent24h)
+	if err != nil {
+		recent24h = 0
+	}
+	stats["recent_24h_alerts"] = recent24h
+
+	rows, err := DB.Query(`SELECT attack_type, COUNT(*) FROM alerts GROUP BY attack_type`)
+	byType := make(map[string]int)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var at string
+			var count int
+			if err := rows.Scan(&at, &count); err == nil {
+				byType[at] = count
+			}
+		}
+	}
+	stats["attacks_by_type"] = byType
+
+	return stats, nil
+}
+

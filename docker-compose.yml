@@ -73,7 +73,7 @@ services:
       GATEWAY_HOST: "0.0.0.0"
       GATEWAY_PORT: "8080"
       UPSTREAM_BASE_URL: "http://victim-ecommerce:8081"
-      ML_ENGINE_URL: "http://ml-engine:8000"
+      ML_ENGINE_URL: "http://ml-engine:8001"
       ML_ENGINE_TIMEOUT: "5.0"
       REDIS_URL: "redis://redis:6379/0"
       BLOCKLIST_TTL: "3600"
@@ -88,6 +88,17 @@ services:
       - redis
       - kafka
       - victim-ecommerce
+      - ml-engine
+    restart: unless-stopped
+
+  # ── ML Intelligence Engine (PyTorch + Scikit-Learn) ──
+  # Real-time anomaly detection and attack classification
+  ml-engine:
+    build: ./ml-engine
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
     restart: unless-stopped
 
   # ── Security Backend / Risk Engine (Go) ──
@@ -109,5 +120,18 @@ services:
       - postgres
     restart: unless-stopped
 
-  # Define additional custom services here in future phases
-  # e.g., ml-engine, security-dashboard, etc.
+  # ── Security Dashboard (Next.js React Frontend) ──
+  # Real-time monitoring UI with interactive attack simulator
+  security-dashboard:
+    build: ./security-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: "http://localhost:8080"
+      NEXT_PUBLIC_VICTIM_URL: "http://localhost:8081"
+      NEXT_PUBLIC_SECURITY_BACKEND_URL: "http://localhost:8082"
+    depends_on:
+      - api-gateway
+      - security-backend
+    restart: unless-stopped
+

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/kirantej611/capstone-api-security/security-backend/api"
 	"github.com/kirantej611/capstone-api-security/security-backend/config"
 	"github.com/kirantej611/capstone-api-security/security-backend/db"
 	"github.com/kirantej611/capstone-api-security/security-backend/models"
@@ -55,6 +56,9 @@ func processVerdict(raw []byte, cfg config.Config) {
 	log.Printf("[risk] Attack from %s | type=%s | confidence=%.2f | action=%s",
 		v.ClientIP, v.ThreatType, v.ThreatConfidence, v.Action)
 
+	// Broadcast real-time verdict telemetry to connected dashboard WebSocket clients
+	api.AlertHub.Broadcast(v)
+
 	// --- Risk Score Calculation ---
 	// Base increment: 10 pts for any attack signal
 	// Multiplied by threat confidence (0–1) if available → up to 100 pts per hit
@@ -99,6 +103,10 @@ func processVerdict(raw []byte, cfg config.Config) {
 			log.Printf("[db] Failed to save alert: %v", err)
 		} else {
 			log.Printf("[db] Alert saved for %s (%s)", v.ClientIP, v.ThreatType)
+			api.AlertHub.Broadcast(alert)
+			if alertBytes, err := json.Marshal(alert); err == nil {
+				api.SSESubscribers.Broadcast(string(alertBytes))
+			}
 		}
 	}
 }
