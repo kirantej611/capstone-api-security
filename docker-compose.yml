@@ -90,5 +90,24 @@ services:
       - victim-ecommerce
     restart: unless-stopped
 
+  # ── Security Backend / Risk Engine (Go) ──
+  # Consumes ML predictions from Kafka, scores IPs, blocks threats, serves alerts API
+  security-backend:
+    build: ./security-backend
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      KAFKA_BROKERS: "kafka:29092"
+      KAFKA_TOPIC: "ml-predictions"
+      REDIS_ADDR: "redis:6379"
+      POSTGRES_URL: "postgres://admin:password@postgres:5432/capstone_db?sslmode=disable"
+      BLOCK_THRESHOLD: "80.0"
+    depends_on:
+      - kafka
+      - redis
+      - postgres
+    restart: unless-stopped
+
   # Define additional custom services here in future phases
-  # e.g., ml-engine, security-backend, security-dashboard, etc.
+  # e.g., ml-engine, security-dashboard, etc.
