@@ -1,0 +1,6 @@
+# Attack Simulator Dependencies
+httpx==0.25.2
+rich==13.7.0
+click==8.1.7
+python-dotenv==1.0.0
+faker==20.1.0
