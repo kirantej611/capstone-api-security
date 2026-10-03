@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
@@ -22,43 +24,40 @@ def train_classifier():
     os.makedirs("plots", exist_ok=True)
 
     # Load data
-    try:
-        X_train, X_val, X_test, y_train, y_val, y_test = load_and_split('data/synthetic_dataset.csv', test_size=0.15, val_size=0.15)
-    except Exception as e:
-        print(f"Error loading data (mocking data for testing): {e}")
-        np.random.seed(42)
-        X_train = np.random.randn(1000, 18)
-        y_train = np.random.randint(0, 5, 1000)
-        X_val = np.random.randn(200, 18)
-        y_val = np.random.randint(0, 5, 200)
+    print("Loading dataset...")
+    X_train, X_val, X_test, y_train, y_val, y_test = load_and_split(
+        'data/synthetic_dataset.csv', test_size=0.15, val_size=0.15
+    )
+    print(f"  Train: {len(X_train)}, Val: {len(X_val)}, Test: {len(X_test)}")
 
     # Normalize features
-    X_train_norm, X_val_norm, _, scaler = normalize_features(X_train, X_val, X_val)
+    X_train_norm, X_val_norm, X_test_norm, scaler = normalize_features(X_train, X_val, X_test)
 
     # Create dataloaders
-    train_loader = create_dataloaders(X_train_norm, y_train, batch_size=64, shuffle=True)
-    val_loader = create_dataloaders(X_val_norm, y_val, batch_size=64, shuffle=False)
+    train_loader, val_loader, test_loader = create_dataloaders(
+        X_train_norm, y_train, X_val_norm, y_val, X_test_norm, y_test,
+        batch_size=64, shuffle=True
+    )
 
     # Compute class weights
     classes, counts = np.unique(y_train, return_counts=True)
     total = len(y_train)
     class_weights = []
-    # Sort by class index
     for i in range(5):
         if i in classes:
             idx = np.where(classes == i)[0][0]
-            # w = total / (num_classes * count)
             weight = total / (5.0 * counts[idx])
         else:
             weight = 1.0
         class_weights.append(weight)
     
     class_weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(device)
+    print(f"  Class weights: {[f'{w:.2f}' for w in class_weights]}")
     
-    model = HybridClassifier(input_dim=18, num_classes=5).to(device)
+    model = HybridClassifier(input_dim=X_train_norm.shape[1], num_classes=5).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
     epochs = 100
     patience = 15
@@ -68,14 +67,15 @@ def train_classifier():
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
 
-    print("Training CNN+BiLSTM Classifier...")
+    print(f"\nTraining CNN+BiLSTM Classifier ({X_train_norm.shape[1]} features, 5 classes)...")
+    print("-" * 70)
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
         correct = 0
         total_samples = 0
         
-        for X_batch, y_batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]", leave=False):
+        for X_batch, y_batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False):
             X_batch, y_batch = X_batch.to(device), y_batch.to(device).long()
             
             optimizer.zero_grad()
@@ -116,7 +116,7 @@ def train_classifier():
         
         scheduler.step(val_loss)
         
-        print(f"Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f}, Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f}, Acc: {val_acc:.4f}")
+        print(f"Epoch {epoch+1:3d}/{epochs} — Train Loss: {train_loss:.4f}, Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f}, Acc: {val_acc:.4f}")
 
         # Early stopping
         if val_loss < best_val_loss:
@@ -126,11 +126,12 @@ def train_classifier():
         else:
             epochs_no_improve += 1
             if epochs_no_improve >= patience:
-                print(f"Early stopping at epoch {epoch+1}")
+                print(f"\nEarly stopping at epoch {epoch+1}")
                 break
 
     # Load best model
-    model.load_state_dict(torch.load('saved_models/classifier.pth'))
+    model.load_state_dict(torch.load('saved_models/classifier.pth', weights_only=True))
+    print("\nBest model loaded.")
     
     # Save label mapping
     label_mapping = {
@@ -142,8 +143,9 @@ def train_classifier():
     }
     with open('saved_models/label_mapping.json', 'w') as f:
         json.dump(label_mapping, f)
+    print("Label mapping saved to saved_models/label_mapping.json")
 
-    # Evaluation
+    # Evaluation on validation set
     model.eval()
     all_preds = []
     all_labels = []
@@ -155,36 +157,55 @@ def train_classifier():
             all_preds.extend(preds)
             all_labels.extend(y_batch.numpy())
 
-    print("\nClassification Report:")
-    print(classification_report(all_labels, all_preds, target_names=[label_mapping[str(i)] for i in range(5)]))
+    print("\n" + "=" * 60)
+    print("Classification Report:")
+    print("=" * 60)
+    print(classification_report(
+        all_labels, all_preds,
+        target_names=[label_mapping[str(i)] for i in range(5)],
+        zero_division=0
+    ))
 
     # Confusion matrix
     cm = confusion_matrix(all_labels, all_preds)
-    plt.figure(figsize=(8,6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[label_mapping[str(i)] for i in range(5)], yticklabels=[label_mapping[str(i)] for i in range(5)])
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        cm, annot=True, fmt='d', cmap='Blues',
+        xticklabels=[label_mapping[str(i)] for i in range(5)],
+        yticklabels=[label_mapping[str(i)] for i in range(5)]
+    )
     plt.xlabel('Predicted')
     plt.ylabel('Actual')
-    plt.title('Confusion Matrix')
+    plt.title('Confusion Matrix — CNN+BiLSTM Classifier')
     plt.tight_layout()
-    plt.savefig('plots/confusion_matrix.png')
+    plt.savefig('plots/confusion_matrix.png', dpi=150)
     plt.close()
+    print("Confusion matrix saved to plots/confusion_matrix.png")
 
     # Metrics plot
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(val_losses, label='Val Loss')
+    plt.plot(train_losses, label='Train Loss', linewidth=2)
+    plt.plot(val_losses, label='Val Loss', linewidth=2)
     plt.legend()
     plt.title('Loss Curve')
+    plt.grid(True, alpha=0.3)
     
     plt.subplot(1, 2, 2)
-    plt.plot(train_accs, label='Train Acc')
-    plt.plot(val_accs, label='Val Acc')
+    plt.plot(train_accs, label='Train Acc', linewidth=2)
+    plt.plot(val_accs, label='Val Acc', linewidth=2)
     plt.legend()
     plt.title('Accuracy Curve')
+    plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig('plots/classifier_metrics.png')
+    plt.savefig('plots/classifier_metrics.png', dpi=150)
     plt.close()
+    print("Training metrics saved to plots/classifier_metrics.png")
+
+    print("\n" + "=" * 60)
+    print("Classifier training complete!")
+    print("=" * 60)
 
 if __name__ == "__main__":
     train_classifier()
+

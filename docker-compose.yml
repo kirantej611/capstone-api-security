@@ -42,22 +42,32 @@ services:
     volumes:
       - ./victim-ecommerce/db/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh
 
-  # Define your custom services here in future phases
-  # e.g., api-gateway, ml-engine, etc.
-  
-  victim-ecommerce:
-    build: ./victim-ecommerce
+  # ── API Gateway ──
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_USER: admin
-      DATABASE_PASSWORD: password
-      DATABASE_NAME: victim_ecommerce_db
-      MAINTENANCE_DB: postgres
-      JWT_SECRET: super-secret-key-123
-      VULN_MODE: "true"
+      GATEWAY_HOST: "0.0.0.0"
+      GATEWAY_PORT: "8080"
+      UPSTREAM_BASE_URL: "http://victim-ecommerce:8081"
+      ML_ENGINE_URL: "http://ml-engine:8000"
+      ML_ENGINE_TIMEOUT: "5.0"
+      REDIS_URL: "redis://redis:6379/0"
+      BLOCKLIST_TTL: "3600"
+      RATE_LIMIT_WINDOW: "60"
+      RATE_LIMIT_MAX_REQUESTS: "100"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      KAFKA_TOPIC_REQUESTS: "api.requests.raw"
+      KAFKA_TOPIC_VERDICTS: "api.verdicts"
+      BLOCK_ON_ML_FAILURE: "false"
+      RISK_THRESHOLD_BLOCK: "HIGH"
     depends_on:
-      - postgres
       - redis
+      - kafka
+    restart: unless-stopped
+
+  # Define additional custom services here in future phases
+  # e.g., ml-engine, victim-ecommerce, security-backend, etc.
