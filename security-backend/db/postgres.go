@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"log"
 
@@ -70,28 +71,28 @@ func GetRecentAlerts(limit int) ([]models.Alert, error) {
 	return alerts, nil
 }
 
-func GetAlertStats() (map[string]interface{}, error) {
+func GetAlertStats(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	var totalAlerts int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM alerts`).Scan(&totalAlerts); err != nil {
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts`).Scan(&totalAlerts); err != nil {
 		return nil, err
 	}
 	stats["total_alerts"] = totalAlerts
 
 	var highCritical int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM alerts WHERE severity IN ('HIGH', 'CRITICAL')`).Scan(&highCritical); err != nil {
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE severity IN ('HIGH', 'CRITICAL')`).Scan(&highCritical); err != nil {
 		return nil, err
 	}
 	stats["high_critical_alerts"] = highCritical
 
 	var recent24h int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM alerts WHERE timestamp >= NOW() - INTERVAL '24 hours'`).Scan(&recent24h); err != nil {
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE timestamp >= NOW() - INTERVAL '24 hours'`).Scan(&recent24h); err != nil {
 		return nil, err
 	}
 	stats["recent_24h_alerts"] = recent24h
 
-	rows, err := DB.Query(`SELECT attack_type, COUNT(*) FROM alerts GROUP BY attack_type`)
+	rows, err := DB.QueryContext(ctx, `SELECT COALESCE(attack_type, 'UNKNOWN'), COUNT(*) FROM alerts GROUP BY COALESCE(attack_type, 'UNKNOWN')`)
 	if err != nil {
 		return nil, err
 	}

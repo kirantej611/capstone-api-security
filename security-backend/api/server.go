@@ -101,7 +101,7 @@ func getRiskScore(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid IP address"})
 		return
 	}
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	scoreStr, err := rdb.Client.Get(ctx, fmt.Sprintf("risk_score:%s", ip)).Result()
 	if err != nil {
@@ -121,7 +121,7 @@ func unblockIP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid IP address"})
 		return
 	}
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	deleted, err := rdb.Client.Del(ctx, fmt.Sprintf("blocklist:%s", ip)).Result()
 	if err != nil {
@@ -151,7 +151,7 @@ func blockIP(c *gin.Context) {
 
 // GET /api/stats — aggregate attack statistics for the dashboard
 func getStats(c *gin.Context) {
-	stats, err := db.GetAlertStats()
+	stats, err := db.GetAlertStats(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
