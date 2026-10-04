@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kirantej611/capstone-api-security/security-backend/db"
@@ -95,6 +97,10 @@ func getBlocklist(c *gin.Context) {
 // GET /api/risk/:ip
 func getRiskScore(c *gin.Context) {
 	ip := c.Param("ip")
+	if net.ParseIP(ip) == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid IP address"})
+		return
+	}
 	ctx := context.Background()
 
 	scoreStr, err := rdb.Client.Get(ctx, fmt.Sprintf("risk_score:%s", ip)).Result()
@@ -111,6 +117,10 @@ func getRiskScore(c *gin.Context) {
 // DELETE /api/block/:ip — unblock an IP
 func unblockIP(c *gin.Context) {
 	ip := c.Param("ip")
+	if net.ParseIP(ip) == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid IP address"})
+		return
+	}
 	ctx := context.Background()
 
 	deleted, err := rdb.Client.Del(ctx, fmt.Sprintf("blocklist:%s", ip)).Result()
@@ -128,6 +138,10 @@ func unblockIP(c *gin.Context) {
 // POST /api/block/:ip — manually block an IP
 func blockIP(c *gin.Context) {
 	ip := c.Param("ip")
+	if net.ParseIP(ip) == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid IP address"})
+		return
+	}
 	if err := rdb.BlockIP(ip); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -143,13 +157,13 @@ func getStats(c *gin.Context) {
 		return
 	}
 
-	blockedIPs, _ := rdb.GetBlocklist()
-	blockedCount := 0
-	if blockedIPs != nil {
-		blockedCount = len(blockedIPs)
+	blockedIPs, err := rdb.GetBlocklist()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
-	stats["active_blocked_ips"] = blockedCount
+	stats["active_blocked_ips"] = len(blockedIPs)
 	stats["ws_clients"] = AlertHub.ClientCount()
 	c.JSON(http.StatusOK, stats)
 }
@@ -168,7 +182,10 @@ func sseAlerts(c *gin.Context) {
 
 	c.Stream(func(w io.Writer) bool {
 		select {
-		case msg := <-alertCh:
+		case msg, ok := <-alertCh:
+			if !ok {
+				return false
+			}
 			c.SSEvent("alert", msg)
 			return true
 		case <-c.Request.Context().Done():
@@ -177,30 +194,36 @@ func sseAlerts(c *gin.Context) {
 	})
 }
 
-// SSESubscribers manages SSE client channels
+// SSESubscribers manages SSE client channels safely with RWMutex
 var SSESubscribers = &sseManager{
 	channels: make(map[chan string]bool),
 }
 
 type sseManager struct {
+	mu       sync.RWMutex
 	channels map[chan string]bool
 }
 
 func (s *sseManager) Add(ch chan string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.channels[ch] = true
 }
 
 func (s *sseManager) Remove(ch chan string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.channels, ch)
-	close(ch)
 }
 
 func (s *sseManager) Broadcast(msg string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for ch := range s.channels {
 		select {
 		case ch <- msg:
 		default:
-			// Skip slow clients
+			// Skip slow clients whose buffer is full
 		}
 	}
 }

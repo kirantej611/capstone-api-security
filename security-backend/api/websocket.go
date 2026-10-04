@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -53,6 +54,7 @@ func (h *Hub) Broadcast(data interface{}) {
 	h.mu.RLock()
 	var failed []*websocket.Conn
 	for conn := range h.clients {
+		_ = conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
 		err := conn.WriteMessage(websocket.TextMessage, msg)
 		if err != nil {
 			log.Printf("[ws] Write error: %v", err)

@@ -99,12 +99,13 @@ func processVerdict(raw []byte, cfg config.Config) {
 				v.ThreatType, v.Method, v.Path, v.ThreatConfidence,
 			),
 		}
-		if err := db.SaveAlert(alert); err != nil {
+		savedAlert, err := db.SaveAlert(alert)
+		if err != nil {
 			log.Printf("[db] Failed to save alert: %v", err)
 		} else {
-			log.Printf("[db] Alert saved for %s (%s)", v.ClientIP, v.ThreatType)
-			api.AlertHub.Broadcast(alert)
-			if alertBytes, err := json.Marshal(alert); err == nil {
+			log.Printf("[db] Alert #%d saved for %s (%s)", savedAlert.ID, v.ClientIP, v.ThreatType)
+			api.AlertHub.Broadcast(savedAlert)
+			if alertBytes, err := json.Marshal(savedAlert); err == nil {
 				api.SSESubscribers.Broadcast(string(alertBytes))
 			}
 		}
