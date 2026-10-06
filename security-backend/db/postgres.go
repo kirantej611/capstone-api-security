@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"log"
 
@@ -43,10 +44,10 @@ func createTables() {
 	}
 }
 
-func SaveAlert(alert models.Alert) error {
-	query := `INSERT INTO alerts (source_ip, attack_type, severity, details) VALUES ($1, $2, $3, $4)`
-	_, err := DB.Exec(query, alert.SourceIP, alert.AttackType, alert.Severity, alert.Details)
-	return err
+func SaveAlert(alert models.Alert) (models.Alert, error) {
+	query := `INSERT INTO alerts (source_ip, attack_type, severity, details) VALUES ($1, $2, $3, $4) RETURNING id, timestamp`
+	err := DB.QueryRow(query, alert.SourceIP, alert.AttackType, alert.Severity, alert.Details).Scan(&alert.ID, &alert.Timestamp)
+	return alert, err
 }
 
 func GetRecentAlerts(limit int) ([]models.Alert, error) {
@@ -64,5 +65,53 @@ func GetRecentAlerts(limit int) ([]models.Alert, error) {
 		}
 		alerts = append(alerts, a)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return alerts, nil
 }
+
+func GetAlertStats(ctx context.Context) (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	var totalAlerts int
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts`).Scan(&totalAlerts); err != nil {
+		return nil, err
+	}
+	stats["total_alerts"] = totalAlerts
+
+	var highCritical int
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE severity IN ('HIGH', 'CRITICAL')`).Scan(&highCritical); err != nil {
+		return nil, err
+	}
+	stats["high_critical_alerts"] = highCritical
+
+	var recent24h int
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE timestamp >= NOW() - INTERVAL '24 hours'`).Scan(&recent24h); err != nil {
+		return nil, err
+	}
+	stats["recent_24h_alerts"] = recent24h
+
+	rows, err := DB.QueryContext(ctx, `SELECT COALESCE(attack_type, 'UNKNOWN'), COUNT(*) FROM alerts GROUP BY COALESCE(attack_type, 'UNKNOWN')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	byType := make(map[string]int)
+	for rows.Next() {
+		var at string
+		var count int
+		if err := rows.Scan(&at, &count); err != nil {
+			return nil, err
+		}
+		byType[at] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	stats["attacks_by_type"] = byType
+
+	return stats, nil
+}
+
