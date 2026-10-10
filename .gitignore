@@ -6,5 +6,10 @@ __pycache__/
 venv/
 dist/
 build/
+.next/
+*.tsbuildinfo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .DS_Store
 *.log

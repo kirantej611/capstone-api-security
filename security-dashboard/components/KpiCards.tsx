@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { Activity, Ban, CheckCircle2, Clock3, Shield, Gauge } from 'lucide-react';
 import { GatewayStats } from '../lib/types';
 
 interface KpiCardsProps {
@@ -11,53 +11,53 @@ interface KpiCardsProps {
 export default function KpiCards({ stats }: KpiCardsProps) {
   const cards = [
     {
-      id: 'students',
-      colorClass: 'purple',
-      badge: '↑ 15%',
-      badgeType: 'positive',
+      id: 'total-requests',
+      icon: Activity,
       value: stats.total_requests.toLocaleString(),
-      label: 'Total Traffic (Requests)',
+      label: 'Total requests',
     },
     {
-      id: 'teachers',
-      colorClass: 'yellow',
-      badge: '↓ 3%',
-      badgeType: 'warning',
+      id: 'blocked-requests',
+      icon: Ban,
       value: stats.blocked_requests.toLocaleString(),
-      label: 'Blocked Threat Vectors',
+      label: 'Blocked requests',
     },
     {
-      id: 'staffs',
-      colorClass: 'blue',
-      badge: '↓ 3%',
-      badgeType: 'neutral',
-      value: `${stats.avg_ml_latency_ms.toFixed(1)}ms`,
-      label: 'ML Inference Latency',
+      id: 'allowed-requests',
+      icon: CheckCircle2,
+      value: stats.allowed_requests.toLocaleString(),
+      label: 'Allowed requests',
     },
     {
-      id: 'awards',
-      colorClass: 'orange',
-      badge: '↑ 5%',
-      badgeType: 'positive',
-      value: stats.active_blocked_ips.toString(),
-      label: 'Active Redis Blocklist',
+      id: 'inference-latency',
+      icon: Clock3,
+      value: `${stats.avg_ml_latency_ms.toFixed(1)} ms`,
+      label: 'Average ML latency',
+    },
+    {
+      id: 'active-blocklist',
+      icon: Shield,
+      value: stats.active_blocked_ips.toLocaleString(),
+      label: 'Active blocked IPs',
+    },
+    {
+      id: 'request-rate',
+      icon: Gauge,
+      value: `${stats.requests_per_second.toFixed(1)} / sec`,
+      label: 'Current request rate',
     },
   ];
 
   return (
     <div className="pastel-cards-grid">
-      {cards.map((c) => (
-        <div key={c.id} className={`pastel-card ${c.colorClass}`}>
+      {cards.map(({ id, icon: Icon, value, label }) => (
+        <div key={id} className="pastel-card">
           <div className="pastel-card-top">
-            <span className={`pastel-badge ${c.badgeType}`}>
-              {c.badge}
-            </span>
-            <button className="card-dots-btn">•••</button>
+            <Icon size={18} aria-hidden="true" />
           </div>
-
           <div>
-            <div className="pastel-card-number">{c.value}</div>
-            <div className="pastel-card-label">{c.label}</div>
+            <div className="pastel-card-number">{value}</div>
+            <div className="pastel-card-label">{label}</div>
           </div>
         </div>
       ))}

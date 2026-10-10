@@ -1,36 +1,22 @@
 """
 reviews.py — Product review routes
 Endpoints:
-  POST /api/products/{product_id}/reviews  — add review (VULN_MODE: stored XSS via unescaped comment)
-  GET  /api/products/{product_id}/reviews  — list reviews (reflects stored XSS payloads)
+  POST /api/products/{product_id}/reviews  — add review (VULN_MODE: stored XSS)
+  GET  /api/products/{product_id}/reviews  — list reviews
 """
 import html
 import logging
-import jwt
-from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, Request
 
-from app.database import pool
-from app.config import VULN_MODE, JWT_SECRET, JWT_ALGORITHM
+from app import database
+from app.auth_utils import demo_fallback_user_id, require_user_id
+from app.config import VULN_MODE
+from app.errors import raise_internal_error
 from app.models.schemas import ReviewCreate, ReviewOut
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _extract_user_id(request: Request) -> int:
-    """
-    Extract user_id from JWT. Returns 1 if missing / invalid.
-    Defaulting to user_id=1 without auth is itself an intentional weakness.
-    """
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        try:
-            payload = jwt.decode(auth[7:], JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            return payload.get("user_id", 1)
-        except Exception:
-            pass
-    return 1
 
 
 @router.post("/api/products/{product_id}/reviews", status_code=201)
@@ -38,54 +24,53 @@ async def add_review(product_id: int, data: ReviewCreate, request: Request):
     """
     Add a review to a product.
 
-    VULN_MODE=true  → comment stored raw in DB without HTML escaping (Stored XSS).
-    VULN_MODE=false → comment is HTML-escaped before storage.
+    VULN_MODE=true  → anonymous posts allowed (user 1) and comment stored raw.
+    VULN_MODE=false → authentication required and comment is HTML-escaped.
     """
-    user_id = _extract_user_id(request)
+    user_id = demo_fallback_user_id(request) if VULN_MODE else require_user_id(request)
+    comment = data.comment if VULN_MODE else html.escape(data.comment)
 
-    if VULN_MODE:
-        # ── VULNERABLE PATH ────────────────────────────────────────────────────
-        # XSS payload stored verbatim:  <script>alert('xss')</script>
-        comment = data.comment
-    else:
-        # ── SAFE PATH ──────────────────────────────────────────────────────────
-        comment = html.escape(data.comment)
+    async with database.pool.acquire() as conn:
+        try:
+            exists = await conn.fetchval("SELECT 1 FROM products WHERE id=$1", product_id)
+            if not exists:
+                raise HTTPException(status_code=404, detail="Product not found")
 
-    async with pool.acquire() as conn:
-        # Verify product exists
-        exists = await conn.fetchval("SELECT 1 FROM products WHERE id=$1", product_id)
-        if not exists:
-            raise HTTPException(status_code=404, detail="Product not found")
+            row = await conn.fetchrow(
+                """INSERT INTO reviews (product_id, user_id, rating, comment)
+                   VALUES ($1, $2, $3, $4)
+                   RETURNING id, product_id, user_id, rating, comment, created_at""",
+                product_id,
+                user_id,
+                data.rating,
+                comment,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise_internal_error(exc, "Could not save review")
 
-        row = await conn.fetchrow(
-            """INSERT INTO reviews (product_id, user_id, rating, comment)
-               VALUES ($1, $2, $3, $4)
-               RETURNING id, product_id, user_id, rating, comment, created_at""",
-            product_id, user_id, data.rating, comment,
-        )
-
-    logger.info(f"Review added to product {product_id} by user {user_id}")
+    logger.info("Review added to product %s by user %s", product_id, user_id)
     return ReviewOut(
         id=row["id"],
         product_id=row["product_id"],
         user_id=row["user_id"],
         rating=row["rating"],
-        comment=row["comment"],    # returned verbatim — XSS reflected if client renders HTML
+        comment=row["comment"],
         created_at=str(row["created_at"]),
     )
 
 
 @router.get("/api/products/{product_id}/reviews")
 async def get_reviews(product_id: int):
-    """
-    Get all reviews for a product.
-    Stored XSS payloads are returned verbatim in VULN_MODE (no re-escaping on read).
-    """
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM reviews WHERE product_id=$1 ORDER BY created_at DESC",
-            product_id,
-        )
+    async with database.pool.acquire() as conn:
+        try:
+            rows = await conn.fetch(
+                "SELECT * FROM reviews WHERE product_id=$1 ORDER BY created_at DESC",
+                product_id,
+            )
+        except Exception as exc:
+            raise_internal_error(exc, "Could not load reviews")
     return [
         ReviewOut(
             id=r["id"],

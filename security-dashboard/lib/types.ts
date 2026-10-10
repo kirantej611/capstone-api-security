@@ -74,10 +74,7 @@ export interface HealthResponse {
 
 export interface BlockedIPEntry {
   ip: string;
-  reason: string;
-  blocked_at: string;
-  ttl_remaining_seconds: number;
-  severity: RiskLevel;
+  reason?: string;
 }
 
 export interface AttackScenario {

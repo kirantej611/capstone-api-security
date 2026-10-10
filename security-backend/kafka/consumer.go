@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
+	"strings"
+	"time"
 
 	"github.com/kirantej611/capstone-api-security/security-backend/api"
 	"github.com/kirantej611/capstone-api-security/security-backend/config"
@@ -31,26 +34,42 @@ func StartConsumer(cfg config.Config) {
 	go func() {
 		defer r.Close()
 		for {
-			m, err := r.ReadMessage(context.Background())
+			m, err := r.FetchMessage(context.Background())
 			if err != nil {
 				log.Printf("[kafka] Read error: %v", err)
 				continue
 			}
-			processVerdict(m.Value, cfg)
+
+			for retry := 0; ; retry++ {
+				if err := processVerdict(m.Value, cfg); err != nil {
+					delay := time.Second << min(retry, 5)
+					log.Printf("[kafka] Verdict processing failed; retrying in %s: %v", delay, err)
+					time.Sleep(delay)
+					continue
+				}
+				if err := r.CommitMessages(context.Background(), m); err != nil {
+					log.Printf("[kafka] Offset commit failed: %v", err)
+				}
+				break
+			}
 		}
 	}()
 }
 
-func processVerdict(raw []byte, cfg config.Config) {
+func processVerdict(raw []byte, cfg config.Config) error {
 	var v models.GatewayVerdict
 	if err := json.Unmarshal(raw, &v); err != nil {
 		log.Printf("[kafka] Failed to parse verdict: %v", err)
-		return
+		return nil
 	}
 
-	// Only process requests that the ML engine flagged as attacks
+	// Blocklist and rate-limit decisions are not ML attack signals.
 	if !v.IsAttack() {
-		return
+		return nil
+	}
+	if net.ParseIP(v.ClientIP) == nil {
+		log.Printf("[kafka] Ignoring anomalous verdict with invalid client IP %q", v.ClientIP)
+		return nil
 	}
 
 	log.Printf("[risk] Attack from %s | type=%s | confidence=%.2f | action=%s",
@@ -64,20 +83,24 @@ func processVerdict(raw []byte, cfg config.Config) {
 	// Multiplied by threat confidence (0–1) if available → up to 100 pts per hit
 	increment := 10.0
 	if v.ThreatConfidence > 0 {
-		increment = v.ThreatConfidence * 100
+		confidence := v.ThreatConfidence
+		if confidence > 1 {
+			confidence = 1
+		}
+		increment = confidence * 100
 	} else if v.AnomalyScore > 0 {
 		increment = v.AnomalyScore * 20
 	}
 
 	// Bump score for already-blocked IPs (they shouldn't be reaching us, but handle it)
-	if v.Action == "block" {
+	if v.IsBlocked() {
 		increment *= 1.5
 	}
 
 	newScore, err := rdb.IncrementRiskScore(v.ClientIP, increment)
 	if err != nil {
 		log.Printf("[risk] Redis error for %s: %v", v.ClientIP, err)
-		return
+		return err
 	}
 	log.Printf("[risk] IP %s score=%.2f threshold=%.2f", v.ClientIP, newScore, cfg.BlockThreshold)
 
@@ -85,12 +108,17 @@ func processVerdict(raw []byte, cfg config.Config) {
 	if newScore >= cfg.BlockThreshold {
 		if err := rdb.BlockIP(v.ClientIP); err != nil {
 			log.Printf("[risk] Failed to block %s: %v", v.ClientIP, err)
+			return err
 		}
 
 		severity := severityFromRisk(v.RiskLevel)
+		attackType := strings.TrimSpace(v.ThreatType)
+		if attackType == "" || strings.EqualFold(attackType, "Normal") {
+			attackType = "Anomalous request"
+		}
 		alert := models.Alert{
 			SourceIP:   v.ClientIP,
-			AttackType: v.ThreatType,
+			AttackType: attackType,
 			Severity:   severity,
 			Details: fmt.Sprintf(
 				"IP blocked after risk score %.2f exceeded threshold %.2f. "+
@@ -102,6 +130,7 @@ func processVerdict(raw []byte, cfg config.Config) {
 		savedAlert, err := db.SaveAlert(alert)
 		if err != nil {
 			log.Printf("[db] Failed to save alert: %v", err)
+			return err
 		} else {
 			log.Printf("[db] Alert #%d saved for %s (%s)", savedAlert.ID, v.ClientIP, v.ThreatType)
 			api.AlertHub.Broadcast(savedAlert)
@@ -110,6 +139,7 @@ func processVerdict(raw []byte, cfg config.Config) {
 			}
 		}
 	}
+	return nil
 }
 
 // severityFromRisk maps gateway RiskLevel string to our severity labels

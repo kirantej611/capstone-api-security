@@ -1,34 +1,38 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Layers, Plus, Trash2, Timer } from 'lucide-react';
+import { Layers, Plus, Trash2 } from 'lucide-react';
 import { BlockedIPEntry } from '../lib/types';
 import { addIpToBlocklist, removeIpFromBlocklist } from '../lib/api';
 
 interface BlocklistManagerProps {
   blockedIps: BlockedIPEntry[];
   onRefreshList: () => void;
+  isLive: boolean;
 }
 
 export default function BlocklistManager({
   blockedIps,
   onRefreshList,
+  isLive,
 }: BlocklistManagerProps) {
   const [newIp, setNewIp] = useState('');
-  const [newReason, setNewReason] = useState('Manual SOC Action');
+  const [newReason, setNewReason] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newIp.trim()) return;
     setIsAdding(true);
+    setActionError(null);
     try {
       await addIpToBlocklist(newIp.trim(), newReason.trim());
       setNewIp('');
       onRefreshList();
     } catch (err) {
-      console.error(err);
+      setActionError(err instanceof Error ? err.message : 'Could not add IP');
     } finally {
       setIsAdding(false);
     }
@@ -36,11 +40,12 @@ export default function BlocklistManager({
 
   const handleRemove = async (ip: string) => {
     setIsRemoving(ip);
+    setActionError(null);
     try {
       await removeIpFromBlocklist(ip);
       onRefreshList();
     } catch (err) {
-      console.error(err);
+      setActionError(err instanceof Error ? err.message : 'Could not remove IP');
     } finally {
       setIsRemoving(null);
     }
@@ -50,14 +55,14 @@ export default function BlocklistManager({
     <div className="white-card">
       <div className="card-header-row" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h3 className="card-title">Redis In-Memory Blocklist & Perimeter Defense</h3>
+          <h3 className="card-title">IP blocklist</h3>
           <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            O(1) lookup in Redis • Drops malicious requests at port 8080 ingress before calling ML engine
+            {isLive ? 'Entries reported by the connected gateway.' : 'Gateway unavailable. Blocklist changes are not applied locally.'}
           </span>
         </div>
 
-        <span className="hub-badge hub-badge-allow font-mono">
-          REDIS :6379 CONNECTED ({blockedIps.length} active bans)
+        <span className={`hub-badge ${isLive ? 'hub-badge-allow' : 'hub-badge-rate'} font-mono`}>
+          {blockedIps.length} active {blockedIps.length === 1 ? 'entry' : 'entries'}
         </span>
       </div>
 
@@ -107,9 +112,6 @@ export default function BlocklistManager({
             <tr>
               <th>Blocked IP Address</th>
               <th>Trigger Reason</th>
-              <th>Enforcement Severity</th>
-              <th>Timestamp</th>
-              <th>TTL Remaining</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -119,28 +121,7 @@ export default function BlocklistManager({
                 <td className="font-mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                   {entry.ip}
                 </td>
-                <td style={{ color: 'var(--text-secondary)' }}>{entry.reason}</td>
-                <td>
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      background: entry.severity === 'CRITICAL' ? '#fee2e2' : '#fef3c7',
-                      color: entry.severity === 'CRITICAL' ? '#dc2626' : '#d97706',
-                    }}
-                  >
-                    {entry.severity || 'HIGH'}
-                  </span>
-                </td>
-                <td className="font-mono" style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-                  {entry.blocked_at.slice(0, 19).replace('T', ' ')}
-                </td>
-                <td className="font-mono" style={{ color: '#0284c7', fontSize: '0.76rem' }}>
-                  <Timer size={12} style={{ display: 'inline', marginRight: '3px' }} />
-                  {entry.ttl_remaining_seconds}s
-                </td>
+                <td style={{ color: 'var(--text-secondary)' }}>{entry.reason || 'Not provided by gateway'}</td>
                 <td>
                   <button
                     className="hub-btn-danger"
@@ -154,6 +135,13 @@ export default function BlocklistManager({
                 </td>
               </tr>
             ))}
+            {blockedIps.length === 0 && (
+              <tr>
+                <td colSpan={3} className="dashboard-empty-state">
+                  No blocked IP entries are available.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

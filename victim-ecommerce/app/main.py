@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +21,9 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("SKIP_DB_INIT") == "1":
+        yield
+        return
     await init_db()
     await seed_data()
     yield

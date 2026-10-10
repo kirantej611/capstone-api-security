@@ -2,17 +2,18 @@
 user.py — User profile route
 Endpoint: GET /api/user/profile
 
-Vulnerability (BOLA): if ?user_id= query param is supplied, that user's profile
-is returned regardless of who is authenticated — a classic Broken Object Level
-Authorization (BOLA / IDOR) flaw used in the security demo.
+VULN_MODE BOLA: if ?user_id= is supplied, that profile is returned without
+ownership checks. Safe mode ignores the query parameter and requires a JWT.
 """
 import logging
-import jwt
 from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.database import pool
-from app.config import JWT_SECRET, JWT_ALGORITHM
+from app import database
+from app.auth_utils import require_user_id
+from app.config import VULN_MODE
+from app.errors import raise_internal_error
 from app.models.schemas import ProfileOut
 
 logger = logging.getLogger(__name__)
@@ -22,36 +23,26 @@ router = APIRouter()
 @router.get("/api/user/profile", response_model=ProfileOut)
 async def get_profile(
     request: Request,
-    user_id: Optional[int] = Query(default=None, description="Target user ID (BOLA vulnerability)"),
+    user_id: Optional[int] = Query(default=None, description="Target user ID (BOLA, VULN_MODE only)"),
 ):
-    """
-    Return user profile.
+    if VULN_MODE and user_id is not None:
+        target_id = user_id
+    else:
+        target_id = require_user_id(request)
 
-    BOLA: if ?user_id= is provided, that profile is returned without any
-    ownership check, so any caller can enumerate any user's details.
-    """
-    if user_id is None:
-        # Try to get from JWT
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            try:
-                payload = jwt.decode(auth[7:], JWT_SECRET, algorithms=[JWT_ALGORITHM])
-                user_id = payload.get("user_id", 1)
-            except Exception:
-                user_id = 1
-        else:
-            user_id = 1  # Default — BOLA: returns user 1 even without auth
-
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, username, email, role, created_at FROM users WHERE id=$1",
-            user_id,
-        )
+    async with database.pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                "SELECT id, username, email, role, created_at FROM users WHERE id=$1",
+                target_id,
+            )
+        except Exception as exc:
+            raise_internal_error(exc, "Could not load profile")
 
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
 
-    logger.info(f"Profile viewed for user_id={user_id}")
+    logger.info("Profile viewed for user_id=%s", target_id)
     return ProfileOut(
         id=row["id"],
         username=row["username"],

