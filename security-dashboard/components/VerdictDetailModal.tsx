@@ -59,6 +59,7 @@ export default function VerdictDetailModal({
   };
 
   const anomalyScore = verdict.anomaly_score;
+  const hasModelOutput = anomalyScore != null || (probs != null && Object.keys(probs).length > 0);
 
   return (
     <div className="hub-modal-overlay" onClick={onClose}>
@@ -120,8 +121,14 @@ export default function VerdictDetailModal({
               </span>
             </div>
             <div className="font-mono" style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              ID: {verdict.request_id} • IP: {verdict.client_ip} • {verdict.method} {verdict.path} • Latency: {verdict.ml_latency_ms == null ? '—' : `${verdict.ml_latency_ms.toFixed(1)}ms`}
+              ID: {verdict.request_id} • IP: {verdict.client_ip} • {verdict.method} {verdict.path} • ML latency: {verdict.ml_latency_ms == null || verdict.ml_latency_ms === 0 ? 'not run' : `${verdict.ml_latency_ms.toFixed(1)}ms`}
             </div>
+            {verdict.block_reason && (
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Gateway decision: {verdict.block_reason}
+                {verdict.total_latency_ms != null && ` • Total latency: ${verdict.total_latency_ms.toFixed(1)}ms`}
+              </div>
+            )}
           </div>
         </div>
 
@@ -208,7 +215,13 @@ export default function VerdictDetailModal({
                   </div>
                 </div>
               );
-            }) : <p className="dashboard-empty-state">No feature importance data was included with this verdict.</p>}
+            }            ) : (
+              <p className="dashboard-empty-state">
+                {hasModelOutput
+                  ? 'The ML engine returned this verdict without feature-attribution data.'
+                  : `ML analysis was not run for this request (${verdict.block_reason || verdict.action}); feature importance is unavailable.`}
+              </p>
+            )}
           </div>
         </div>
 
@@ -243,8 +256,32 @@ export default function VerdictDetailModal({
                     {part.text}
                   </span>
                 ))
-              : 'No request body was recorded for this request.'}
+              : verdict.method.toUpperCase() === 'GET'
+                ? 'This request did not include a body.'
+                : 'No request body was captured. The gateway redacts common credential fields before showing request data.'}
           </pre>
+          {verdict.query_params && Object.keys(verdict.query_params).length > 0 && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <h4 style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.45rem' }}>
+                Query parameters
+              </h4>
+              <pre
+                style={{
+                  background: '#0f172a',
+                  color: '#f8fafc',
+                  padding: '1rem',
+                  borderRadius: 'var(--radius-md)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.78rem',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {JSON.stringify(verdict.query_params, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
 
         {/* Footer Buttons */}

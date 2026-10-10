@@ -143,7 +143,9 @@ export async function fetchBlocklist(): Promise<{ data: BlockedIPEntry[]; isLive
     });
     if (res.ok) {
       const json = await res.json();
-      const mapped: BlockedIPEntry[] = (json.blocked_ips || []).map((ip: string) => ({ ip }));
+      const mapped: BlockedIPEntry[] = json.entries
+        ? json.entries
+        : (json.blocked_ips || []).map((ip: string) => ({ ip }));
       localStore.isLiveGateway = true;
       return { data: mapped, isLive: true };
     }
@@ -158,12 +160,14 @@ export async function fetchBlocklist(): Promise<{ data: BlockedIPEntry[]; isLive
  */
 export async function addIpToBlocklist(ip: string, reason = 'manual_admin_action') {
   try {
-    const res = await fetch(`${GATEWAY_URL}/gateway/blocklist/${encodeURIComponent(ip)}`, {
+    const query = new URLSearchParams({ reason });
+    const res = await fetch(
+      `${GATEWAY_URL}/gateway/blocklist/${encodeURIComponent(ip)}?${query.toString()}`,
+      {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
       signal: AbortSignal.timeout(2000),
-    });
+      }
+    );
     if (res.ok) {
       return await res.json();
     }
