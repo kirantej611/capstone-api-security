@@ -36,7 +36,7 @@ HTTP Request → Feature Extraction (42 features)
 | Feature Extraction | `utils/feature_extraction.py` | 42 numeric features covering SQL, XSS, path traversal, command injection, SSRF, encoding patterns, entropy analysis |
 | VAE | `models/autoencoder.py` | Variational Autoencoder with skip connections, residual blocks, multi-scale reconstruction |
 | Classifier | `models/classifier.py` | Deep Residual MLP with multi-head feature-group attention, Focal Loss |
-| Ensemble | `models/ensemble.py` | Weighted decision engine with temperature calibration, per-class thresholds |
+| Ensemble | `models/ensemble.py` | Evidence-based decision policy with classifier calibration and VAE novelty scoring |
 | API | `api/main.py` | FastAPI server with `/predict`, `/predict/batch`, `/health`, `/model/status` |
 
 ## Attack Classes (6)
@@ -66,6 +66,14 @@ python train_classifier.py
 uvicorn api.main:app --host 0.0.0.0 --port 8001
 ```
 
+## Docker Runtime
+
+The inference image installs the pinned CPU-only PyTorch wheel from the PyTorch
+index and resolves its supporting packages from PyPI. Scikit-learn is pinned to
+1.7.2 to match the serialized scaler artifacts. Compose marks the ML service
+healthy only after the v2 model artifacts load and report 42 features and six
+classes; the API gateway waits for that health check before starting.
+
 ## Key Improvements (v1 → v2)
 
 - **Features**: 18 → 42 (double-encoding, SSRF, template injection, event handlers, etc.)
@@ -76,5 +84,18 @@ uvicorn api.main:app --host 0.0.0.0 --port 8001
 - **Augmentation**: None → Mixup (α=0.2)
 - **XAI**: Mocked zeros → perturbation-based feature importance
 - **Calibration**: None → temperature scaling on validation set
-- **Thresholds**: Single global → per-class adaptive thresholds
-- **Inference**: Single model → ensemble (VAE × Classifier) with composite scoring
+- **Training thresholds**: Per-class thresholds are calculated for evaluation; inference uses the global novelty threshold with request evidence
+- **Inference**: Classifier attribution and VAE novelty are checked against request indicators before assigning a risk level
+
+## Inference policy
+
+At prediction time, absolute URLs are reduced to path and query, and browser
+headers are normalized to stable training-style values so transport-specific
+header differences do not distort request features. A high VAE score alone
+does not flag traffic: unknown threats also need suspicious payload structure,
+and known attacks need class-specific payload evidence. Corroborated unknowns
+are reported as `Unknown` at `MEDIUM` risk; known attacks are reported at
+`HIGH` risk. The original request remains unchanged for proxy forwarding. This
+inference-only policy reduces false positives while preserving structural
+novelty detection, but cannot make an unreliable classifier's multiclass
+attribution fully accurate without better training data.

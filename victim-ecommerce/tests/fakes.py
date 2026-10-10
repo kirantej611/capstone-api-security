@@ -16,8 +16,8 @@ class FakeStore:
             Record(id=2, username="user1", email="user1@store.com", password="password123", role="customer", created_at=datetime(2026, 1, 1)),
         ]
         self.products = [
-            Record(id=1, name="Laptop Pro 15", description="High-performance laptop", price=1299.99, image_url=None, category="electronics", stock=10),
-            Record(id=2, name="Classic T-Shirt", description="Cotton t-shirt", price=24.99, image_url=None, category="clothing", stock=5),
+            Record(id=1, name="Laptop Pro 15", description="High-performance laptop", price=108549.17, image_url=None, category="electronics", stock=10),
+            Record(id=2, name="Classic T-Shirt", description="Cotton t-shirt", price=2086.67, image_url=None, category="clothing", stock=5),
         ]
         self.reviews = [
             Record(id=1, product_id=1, user_id=2, rating=5, comment="Great", created_at=datetime(2026, 1, 2)),

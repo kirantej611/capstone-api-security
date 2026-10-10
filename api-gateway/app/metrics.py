@@ -82,6 +82,16 @@ class MetricsTracker:
                 threat_type=verdict.threat_type,
                 risk_level=verdict.risk_level,
                 anomaly_score=verdict.anomaly_score,
+                is_anomalous=verdict.is_anomalous,
+                block_reason=verdict.block_reason,
+                threat_confidence=verdict.threat_confidence,
+                all_probabilities=verdict.all_probabilities,
+                feature_importance=verdict.feature_importance,
+                headers=verdict.headers,
+                body=verdict.body,
+                query_params=verdict.query_params,
+                ml_latency_ms=verdict.ml_latency_ms,
+                total_latency_ms=verdict.total_latency_ms,
             )
         )
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Order, ShopApiError, getOrder, getShopUser } from '../../../../lib/shopApi';
+import { formatInr, formatIstTimestamp } from '../../../../lib/formatters';
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -37,7 +38,7 @@ export default function OrderDetailPage() {
     <div>
       <h1>Order #{order.id}</h1>
       <p>Status: {order.status}</p>
-      <p>Placed: {order.created_at}</p>
+      <p>Placed: {formatIstTimestamp(order.created_at)}</p>
       <p>Ship to: {order.shipping_address}</p>
       <table className="shop-table" style={{ marginTop: '1rem' }}>
         <thead>
@@ -52,13 +53,13 @@ export default function OrderDetailPage() {
             <tr key={`${item.product_id}-${item.quantity}`}>
               <td>{item.name || `Product ${item.product_id}`}</td>
               <td>{item.quantity}</td>
-              <td>${item.price.toFixed(2)}</td>
+              <td>{formatInr(item.price)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p style={{ marginTop: '1rem' }}>
-        <strong>Total: ${order.total.toFixed(2)}</strong>
+        <strong>Total: {formatInr(order.total)}</strong>
       </p>
     </div>
   );

@@ -144,8 +144,12 @@ async def get_blocklist():
     """
     List all currently blocked IPs.
     """
-    ips = await redis_service.get_blocked_ips()
-    return {"blocked_ips": ips, "count": len(ips)}
+    entries = await redis_service.get_blocklist_entries()
+    return {
+        "blocked_ips": [entry["ip"] for entry in entries],
+        "entries": entries,
+        "count": len(entries),
+    }
 
 
 @app.post("/gateway/blocklist/{ip}", tags=["Admin"])
