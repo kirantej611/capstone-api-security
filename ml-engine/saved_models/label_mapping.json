@@ -1,1 +1,8 @@
-{"0": "Normal", "1": "SQLi", "2": "XSS", "3": "PathTraversal", "4": "CommandInjection"}
+{
+  "0": "Normal",
+  "1": "SQLi",
+  "2": "XSS",
+  "3": "PathTraversal",
+  "4": "CommandInjection",
+  "5": "SSRF"
+}

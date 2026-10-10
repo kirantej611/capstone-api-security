@@ -1,85 +1,80 @@
-# ML Engine
+# ML Engine v2.0 — API Attack Detection
 
-The intelligence layer of the API Attack Detection System. Contains deep learning models for anomaly detection and threat classification.
+Production-grade ensemble ML engine for real-time API threat detection and classification.
 
 ## Architecture
 
 ```
-ml-engine/
-├── data/
-│   ├── generate_synthetic.py      # Generates 20K+ custom API traffic samples
-│   ├── process_cicids.py          # Processes CICIDS 2017 academic dataset
-│   ├── process_kaggle.py          # Processes Kaggle web attack payloads
-│   ├── download_csic.py           # Processes CSIC 2010 HTTP dataset
-│   ├── combine_datasets.py        # Merges all datasets into one
-│   ├── synthetic_dataset.csv      # Generated synthetic data (committed)
-│   ├── cicids_raw/                # Place CICIDS CSVs here (not committed)
-│   ├── kaggle_raw/                # Place Kaggle CSVs here (not committed)
-│   └── csic_raw/                  # Place CSIC files here (not committed)
-├── models/
-│   ├── autoencoder.py             # Deep Autoencoder (anomaly detection)
-│   └── classifier.py             # Hybrid CNN+BiLSTM with Attention (classification)
-├── utils/
-│   ├── feature_extraction.py      # Shared 18-feature extractor
-│   └── preprocess.py             # Data loading, normalization, DataLoaders
-├── api/
-│   └── main.py                   # FastAPI inference endpoint
-├── train_autoencoder.py           # Autoencoder training script
-├── train_classifier.py            # Classifier training script
-├── requirements.txt
-└── Dockerfile
+HTTP Request → Feature Extraction (42 features)
+                    ↓
+              ┌─────┴──────┐
+              │   Scaler    │  (RobustScaler)
+              └─────┬──────┘
+                    ↓
+        ┌───────────┼───────────┐
+        ↓                       ↓
+┌───────────────┐    ┌──────────────────┐
+│      VAE      │    │  Deep Residual   │
+│ (Anomaly Det) │    │  MLP Classifier  │
+│  Recon + KL   │    │  (Focal Loss)    │
+└───────┬───────┘    └────────┬─────────┘
+        ↓                     ↓
+        └─────────┬───────────┘
+                  ↓
+      ┌───────────────────────┐
+      │  Ensemble Decision    │
+      │  Engine + Calibration │
+      └───────────┬───────────┘
+                  ↓
+          Threat Assessment
 ```
 
-## Datasets Used
+## Components
 
-| Dataset | Type | Samples | Purpose |
-|---------|------|---------|---------|
-| **Custom Synthetic** | Generated | 20,000 | Primary training data with e-commerce attack patterns |
-| **CICIDS 2017** | Academic benchmark | ~2.8M | Cross-validation, academic credibility (network-level features) |
-| **Kaggle Web Payloads** | Community curated | ~240K | Real-world SQLi/XSS payloads for payload-level training |
-| **CSIC 2010** | Academic benchmark | ~36K | HTTP request-level attacks, academic credibility |
+| Component | File | Description |
+|-----------|------|-------------|
+| Feature Extraction | `utils/feature_extraction.py` | 42 numeric features covering SQL, XSS, path traversal, command injection, SSRF, encoding patterns, entropy analysis |
+| VAE | `models/autoencoder.py` | Variational Autoencoder with skip connections, residual blocks, multi-scale reconstruction |
+| Classifier | `models/classifier.py` | Deep Residual MLP with multi-head feature-group attention, Focal Loss |
+| Ensemble | `models/ensemble.py` | Weighted decision engine with temperature calibration, per-class thresholds |
+| API | `api/main.py` | FastAPI server with `/predict`, `/predict/batch`, `/health`, `/model/status` |
 
-## Quick Start
+## Attack Classes (6)
+
+| Label | Class | Description |
+|-------|-------|-------------|
+| 0 | Normal | Legitimate API traffic |
+| 1 | SQLi | SQL Injection (obvious + evasion variants) |
+| 2 | XSS | Cross-Site Scripting (DOM, stored, reflected) |
+| 3 | PathTraversal | Directory traversal / LFI |
+| 4 | CommandInjection | OS command injection |
+| 5 | SSRF | Server-Side Request Forgery |
+
+## Training Pipeline
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# 1. Generate training data (100K samples)
+python data/generate_synthetic_v3.py
 
-# Step 1: Generate synthetic dataset (already generated, but you can regenerate)
-python data/generate_synthetic.py
-
-# Step 2 (Optional): Process standard datasets if you've downloaded them
-python data/process_cicids.py     # Requires CICIDS CSVs in data/cicids_raw/
-python data/process_kaggle.py     # Requires Kaggle CSVs in data/kaggle_raw/
-python data/download_csic.py      # Requires CSIC files in data/csic_raw/
-
-# Step 3: Combine all available datasets
-python data/combine_datasets.py
-
-# Step 4: Train models
+# 2. Train the VAE (anomaly detection)
 python train_autoencoder.py
+
+# 3. Train the classifier (threat classification)
 python train_classifier.py
 
-# Step 5: Start inference API
-uvicorn api.main:app --port 8001
+# 4. Start the API server
+uvicorn api.main:app --host 0.0.0.0 --port 8001
 ```
 
-## Models
+## Key Improvements (v1 → v2)
 
-### Deep Autoencoder (Anomaly Detection)
-- Trained on **normal traffic only**
-- Detects anomalies via high reconstruction error
-- Architecture: 18→64→32→16→**8**→16→32→64→18
-
-### Hybrid CNN+BiLSTM (Threat Classification)
-- Classifies attacks into: Normal, SQLi, XSS, Path Traversal, Command Injection
-- CNN extracts spatial patterns, BiLSTM captures sequential dependencies
-- Self-attention mechanism for explainability (XAI)
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/model/status` | Model loading status |
-| POST | `/predict` | Classify a request and get anomaly score |
+- **Features**: 18 → 42 (double-encoding, SSRF, template injection, event handlers, etc.)
+- **Anomaly Detection**: Simple AE → VAE with KL annealing, skip connections, multi-scale loss
+- **Classification**: CNN+BiLSTM → Deep Residual MLP with feature-group attention
+- **Loss**: CrossEntropy → Focal Loss (γ=2.0) for class imbalance
+- **Data**: 30K → 100K samples, 50+ templates per attack class, SSRF class
+- **Augmentation**: None → Mixup (α=0.2)
+- **XAI**: Mocked zeros → perturbation-based feature importance
+- **Calibration**: None → temperature scaling on validation set
+- **Thresholds**: Single global → per-class adaptive thresholds
+- **Inference**: Single model → ensemble (VAE × Classifier) with composite scoring
