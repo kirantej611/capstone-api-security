@@ -112,7 +112,7 @@ services:
       victim-ecommerce:
         condition: service_started
       ml-engine:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
   # ── ML Intelligence Engine (PyTorch + Scikit-Learn) ──
@@ -123,6 +123,16 @@ services:
       - "8001:8001"
     environment:
       PORT: "8001"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; status=json.load(urllib.request.urlopen('http://127.0.0.1:8001/model/status', timeout=3)); assert status['is_loaded'] and status['version'] == '2.0.0' and status['num_features'] == 42 and status['num_classes'] == 6"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     restart: unless-stopped
 
   # ── Security Backend / Risk Engine (Go) ──

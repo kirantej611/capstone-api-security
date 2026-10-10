@@ -26,6 +26,11 @@ from models.autoencoder import VariationalAutoencoder
 from models.classifier import DeepResidualClassifier
 from models.ensemble import EnsembleDecisionEngine, TemperatureScaling
 from utils.feature_extraction import extract_features as _extract_features, FEATURE_NAMES, NUM_FEATURES
+from utils.inference_policy import (
+    detect_attack_indicators,
+    has_novel_attack_indicators,
+    normalize_request_for_inference,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -272,8 +277,18 @@ def compute_feature_importance(
 
 def run_prediction(req: PredictRequest) -> dict:
     """Core prediction logic, separated from endpoint for reuse in batch."""
+    model_url, model_body, model_headers = normalize_request_for_inference(
+        req.url, req.body, req.headers
+    )
+    model_req = PredictRequest(
+        url=model_url,
+        method=req.method,
+        body=model_body,
+        headers=model_headers,
+    )
+
     # 1. Feature Extraction
-    raw_features = extract_request_features(req)
+    raw_features = extract_request_features(model_req)
 
     # 2. Scaling
     scaled_features = model_state.scaler.transform(raw_features.reshape(1, -1))
@@ -296,6 +311,12 @@ def run_prediction(req: PredictRequest) -> dict:
         class_probs=probs,
         raw_logits=logits,
         label_mapping=model_state.label_mapping,
+        attack_indicators=detect_attack_indicators(
+            model_url, model_body, model_headers
+        ),
+        novelty_indicators=has_novel_attack_indicators(
+            model_url, req.method, model_body, model_headers
+        ),
     )
 
     # 7. Feature Importance (real perturbation-based XAI)
