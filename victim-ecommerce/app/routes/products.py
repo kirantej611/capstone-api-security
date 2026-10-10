@@ -9,8 +9,9 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
-from app.database import pool
+from app import database
 from app.config import VULN_MODE
+from app.errors import raise_internal_error
 from app.models.schemas import ProductOut
 
 logger = logging.getLogger(__name__)
@@ -37,18 +38,33 @@ async def list_products(
 ):
     """List all products with optional category filter and pagination (always safe)."""
     offset = (page - 1) * limit
-    async with pool.acquire() as conn:
-        if category:
-            rows = await conn.fetch(
-                "SELECT * FROM products WHERE category=$1 ORDER BY id LIMIT $2 OFFSET $3",
-                category, limit, offset,
-            )
-        else:
-            rows = await conn.fetch(
-                "SELECT * FROM products ORDER BY id LIMIT $1 OFFSET $2",
-                limit, offset,
-            )
+    async with database.pool.acquire() as conn:
+        try:
+            if category:
+                rows = await conn.fetch(
+                    "SELECT * FROM products WHERE category=$1 ORDER BY id LIMIT $2 OFFSET $3",
+                    category, limit, offset,
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT * FROM products ORDER BY id LIMIT $1 OFFSET $2",
+                    limit, offset,
+                )
+        except Exception as exc:
+            raise_internal_error(exc, "Could not load products")
     return [_row_to_product(r) for r in rows]
+
+
+@router.get("/api/categories")
+async def list_categories():
+    async with database.pool.acquire() as conn:
+        try:
+            rows = await conn.fetch(
+                "SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category"
+            )
+        except Exception as exc:
+            raise_internal_error(exc, "Could not load categories")
+    return [r["category"] for r in rows]
 
 
 @router.get("/api/products/{product_id}")
@@ -59,7 +75,7 @@ async def get_product(product_id: str):
     VULN_MODE=true  → product_id injected raw into SQL (SQLi target).
     VULN_MODE=false → cast to int and use parameterized query.
     """
-    async with pool.acquire() as conn:
+    async with database.pool.acquire() as conn:
         try:
             if VULN_MODE:
                 # ── VULNERABLE PATH ────────────────────────────────────────────
@@ -74,8 +90,10 @@ async def get_product(product_id: str):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid product ID")
         except Exception as e:
-            logger.warning(f"Product query error: {e}")
-            raise HTTPException(status_code=400, detail=f"Query error: {e}")
+            logger.warning("Product query error: %s", e)
+            if VULN_MODE:
+                raise HTTPException(status_code=400, detail=f"Query error: {e}")
+            raise HTTPException(status_code=400, detail="Invalid product request")
 
         if not row:
             raise HTTPException(status_code=404, detail="Product not found")
@@ -90,7 +108,7 @@ async def search_products(q: str = Query(..., description="Search query")):
     VULN_MODE=true  → raw f-string SQL + search term reflected unescaped in response (SQLi + XSS).
     VULN_MODE=false → parameterized query + escaped reflection.
     """
-    async with pool.acquire() as conn:
+    async with database.pool.acquire() as conn:
         try:
             if VULN_MODE:
                 # ── VULNERABLE PATH ────────────────────────────────────────────
@@ -107,8 +125,10 @@ async def search_products(q: str = Query(..., description="Search query")):
                 import html
                 reflected_q = html.escape(q)
         except Exception as e:
-            logger.warning(f"Search query error: {e}")
-            raise HTTPException(status_code=400, detail=f"Query error: {e}")
+            logger.warning("Search query error: %s", e)
+            if VULN_MODE:
+                raise HTTPException(status_code=400, detail=f"Query error: {e}")
+            raise HTTPException(status_code=400, detail="Search failed")
 
     products = [_row_to_product(r) for r in rows]
     return {"query": reflected_q, "results": products, "count": len(products)}

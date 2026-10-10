@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS products (
     price DECIMAL(10, 2) NOT NULL,
     image_url VARCHAR(255),
     category VARCHAR(50),
+    stock INT DEFAULT 100,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -44,6 +45,14 @@ CREATE TABLE IF NOT EXISTS order_items (
     product_id INTEGER REFERENCES products(id),
     quantity INTEGER NOT NULL,
     price DECIMAL(10, 2) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cart_items (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL CHECK (quantity >= 1),
+    UNIQUE (user_id, product_id)
 );
 
 INSERT INTO users (username, email, password, role) VALUES

@@ -3,15 +3,16 @@ version: '3.8'
 services:
   # Message Broker
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.6.1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    restart: unless-stopped
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.6.1
     depends_on:
       - zookeeper
     ports:
@@ -19,10 +20,19 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
 
   # In-memory Store (Blocklists, Rate Limiting)
   redis:
@@ -41,13 +51,20 @@ services:
       - "5432:5432"
     volumes:
       - ./victim-ecommerce/db/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   # ── Victim E-Commerce Backend (The "Target") ──
-  # Runs on port 8081 BEHIND the API Gateway (not exposed publicly)
+  # Published on loopback only so the local shield-vs-direct demo can reach it
+  # from the host browser. It is not bound on all interfaces.
   victim-ecommerce:
     build: ./victim-ecommerce
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
@@ -58,8 +75,11 @@ services:
       JWT_SECRET: super-secret-key-123
       VULN_MODE: "true"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
 
   # ── API Gateway (The "Shield") ──
   # Public entry point on port 8080 — all traffic flows through here
@@ -85,10 +105,14 @@ services:
       BLOCK_ON_ML_FAILURE: "false"
       RISK_THRESHOLD_BLOCK: "HIGH"
     depends_on:
-      - redis
-      - kafka
-      - victim-ecommerce
-      - ml-engine
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      victim-ecommerce:
+        condition: service_started
+      ml-engine:
+        condition: service_started
     restart: unless-stopped
 
   # ── ML Intelligence Engine (PyTorch + Scikit-Learn) ──
@@ -115,9 +139,12 @@ services:
       POSTGRES_URL: "postgres://admin:password@postgres:5432/capstone_db?sslmode=disable"
       BLOCK_THRESHOLD: "80.0"
     depends_on:
-      - kafka
-      - redis
-      - postgres
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
     restart: unless-stopped
 
   # ── Security Dashboard (Next.js React Frontend) ──
@@ -134,4 +161,3 @@ services:
       - api-gateway
       - security-backend
     restart: unless-stopped
-

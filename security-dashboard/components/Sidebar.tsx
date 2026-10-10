@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   LayoutDashboard,
   ShieldAlert,
@@ -9,10 +10,7 @@ import {
   Layers,
   ShoppingBag,
   Network,
-  Bell,
-  User,
-  Settings,
-  HelpCircle,
+  FlaskConical,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,22 +26,15 @@ export default function Sidebar({
 }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'simulator', label: 'Attack Studio', icon: Zap },
     { id: 'verdicts', label: 'Live Stream', icon: ShieldAlert },
+    { id: 'simulator', label: 'Attack Studio', icon: Zap },
     { id: 'xai', label: 'Explainable AI', icon: Cpu },
     { id: 'blocklist', label: `Redis Blocklist (${blockedCount})`, icon: Layers },
-    { id: 'victim', label: 'Victim Store', icon: ShoppingBag },
     { id: 'topology', label: 'System Topology', icon: Network },
-  ];
-
-  const otherItems = [
-    { id: 'profile', label: 'SOC Profile', icon: User },
-    { id: 'settings', label: 'Gateway Settings', icon: Settings },
   ];
 
   return (
     <aside className="hub-sidebar">
-      {/* Brand logo matching SchoolHub / ShieldHub */}
       <div className="hub-brand">
         <div className="hub-brand-icon">
           <ShieldAlert size={19} />
@@ -51,9 +42,8 @@ export default function Sidebar({
         <span className="hub-brand-title">ShieldHub</span>
       </div>
 
-      {/* Main Menu Section */}
       <div className="sidebar-nav-group">
-        <div className="sidebar-group-title">MENU</div>
+        <div className="sidebar-group-title">SECURITY</div>
         <ul className="sidebar-nav-list">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -63,6 +53,7 @@ export default function Sidebar({
                 <button
                   onClick={() => setActiveTab(item.id)}
                   className={`sidebar-nav-link ${isActive ? 'active' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   <Icon size={17} />
                   <span>{item.label}</span>
@@ -73,25 +64,21 @@ export default function Sidebar({
         </ul>
       </div>
 
-      {/* Other Section */}
-      <div className="sidebar-nav-group" style={{ marginTop: 'auto' }}>
-        <div className="sidebar-group-title">OTHER</div>
+      <div className="sidebar-nav-group" style={{ marginTop: '1.25rem' }}>
+        <div className="sidebar-group-title">SEPARATE APPS</div>
         <ul className="sidebar-nav-list">
-          {otherItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <li key={item.id} className="sidebar-nav-item">
-                <button
-                  onClick={() => setActiveTab(item.id)}
-                  className={`sidebar-nav-link ${isActive ? 'active' : ''}`}
-                >
-                  <Icon size={17} />
-                  <span>{item.label}</span>
-                </button>
-              </li>
-            );
-          })}
+          <li className="sidebar-nav-item">
+            <Link href="/shop" className="sidebar-nav-link">
+              <ShoppingBag size={17} />
+              <span>Customer store</span>
+            </Link>
+          </li>
+          <li className="sidebar-nav-item">
+            <Link href="/demo" className="sidebar-nav-link">
+              <FlaskConical size={17} />
+              <span>Shield vs direct demo</span>
+            </Link>
+          </li>
         </ul>
       </div>
     </aside>

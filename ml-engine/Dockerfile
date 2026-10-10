@@ -11,11 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # If it doesn't exist, we fallback to creating one or just installing directly.
 COPY requirements.txt* /app/
 
-RUN if [ -f "requirements.txt" ]; then \
-        pip install --no-cache-dir -r requirements.txt; \
-    else \
-        pip install --no-cache-dir torch torchvision torchaudio fastapi uvicorn scikit-learn pandas numpy matplotlib seaborn joblib pydantic; \
-    fi
+RUN pip install --no-cache-dir --default-timeout=1000 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir --default-timeout=1000 --retries 10 -r requirements.txt
 
 # Copy all project code
 COPY . /app/

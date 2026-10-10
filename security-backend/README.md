@@ -3,7 +3,7 @@
 > Member 3 — Phase 2 | **Language: Go (Gin)** | Port: `8082`
 
 This service is the **security brain** of the system. It:
-1. **Consumes** ML predictions from Kafka (`ml-predictions` topic)
+1. **Consumes** gateway verdicts from Kafka (`api.verdicts` topic)
 2. **Scores** each source IP using a cumulative risk algorithm (stored in Redis)
 3. **Blocks** IPs whose risk score exceeds the threshold by adding them to a Redis blocklist
 4. **Persists** high-severity alerts to PostgreSQL
@@ -29,17 +29,17 @@ Go is ideal here because this service processes **every single request** that pa
 ## Architecture
 
 ```
-Kafka (ml-predictions topic)
+Kafka (api.verdicts topic)
         │
         ▼
  kafka/consumer.go
-  ├── Parses MLPrediction JSON
+  ├── Parses GatewayVerdict JSON
   ├── Calculates risk increment from confidence score
-  └── Updates Redis risk_score:{ip}
+  └── Scores only anomalous or ML-blocked requests in Redis risk_score:{ip}
           │
           ▼ (score >= BLOCK_THRESHOLD)
    redis/client.go
-    ├── Adds IP to blocklist:{ip}
+    ├── Adds IP to the gateway-compatible blocklist:ip:{ip}
     └── Saves Alert → PostgreSQL
           │
           ▼
@@ -61,7 +61,7 @@ cp .env.example .env
 |---|---|---|
 | `PORT` | `8082` | HTTP server port |
 | `KAFKA_BROKERS` | `kafka:29092` | Kafka broker addresses |
-| `KAFKA_TOPIC` | `ml-predictions` | Topic to consume predictions from |
+| `KAFKA_TOPIC` | `api.verdicts` | Gateway verdict topic to consume |
 | `REDIS_ADDR` | `redis:6379` | Redis address |
 | `POSTGRES_URL` | `postgres://...` | Postgres connection string |
 | `BLOCK_THRESHOLD` | `80.0` | Risk score threshold to block an IP |
@@ -75,6 +75,12 @@ cp .env.example .env
 # From project root
 docker compose up -d security-backend
 ```
+
+The Compose Kafka broker is pinned to the ZooKeeper-compatible Confluent 7.6.1
+image, has a broker health check, and must be healthy before the gateway or
+security backend starts. The backend ignores normal verdicts and gateway
+blocklist/rate-limit decisions; only ML anomaly verdicts affect risk scores.
+Backend blocks use the same `blocklist:ip:<ip>` Redis keys checked by the gateway.
 
 ### Local Build (requires Go 1.22+)
 ```bash

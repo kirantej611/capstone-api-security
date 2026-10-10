@@ -7,18 +7,27 @@ import {
   RecentVerdict,
 } from './types';
 import {
-  INITIAL_BLOCKED_IPS,
   INITIAL_PRODUCTS,
   INITIAL_REVIEWS,
-  INITIAL_STATS,
-  INITIAL_VERDICTS,
 } from './mockData';
+
+export const EMPTY_STATS: GatewayStats = {
+  total_requests: 0,
+  allowed_requests: 0,
+  blocked_requests: 0,
+  rate_limited_requests: 0,
+  flagged_requests: 0,
+  avg_ml_latency_ms: 0,
+  active_blocked_ips: 0,
+  uptime_seconds: 0,
+  requests_per_second: 0,
+};
 
 // State container for in-memory fallback/simulation mode
 class DashboardStore {
-  stats: GatewayStats = { ...INITIAL_STATS };
-  verdicts: RecentVerdict[] = [...INITIAL_VERDICTS];
-  blockedIps: BlockedIPEntry[] = [...INITIAL_BLOCKED_IPS];
+  stats: GatewayStats = { ...EMPTY_STATS };
+  verdicts: RecentVerdict[] = [];
+  blockedIps: BlockedIPEntry[] = [];
   products: Product[] = [...INITIAL_PRODUCTS];
   reviews: ProductReview[] = [...INITIAL_REVIEWS];
   isLiveGateway = false;
@@ -46,9 +55,6 @@ class DashboardStore {
         this.blockedIps.unshift({
           ip: verdict.client_ip,
           reason: `ML_CRITICAL:${verdict.threat_type}`,
-          blocked_at: new Date().toISOString(),
-          ttl_remaining_seconds: 3600,
-          severity: 'CRITICAL',
         });
         this.stats.active_blocked_ips = this.blockedIps.length;
       }
@@ -60,9 +66,6 @@ class DashboardStore {
       this.blockedIps.unshift({
         ip,
         reason,
-        blocked_at: new Date().toISOString(),
-        ttl_remaining_seconds: 3600,
-        severity: 'HIGH',
       });
       this.stats.active_blocked_ips = this.blockedIps.length;
     }
@@ -140,13 +143,7 @@ export async function fetchBlocklist(): Promise<{ data: BlockedIPEntry[]; isLive
     });
     if (res.ok) {
       const json = await res.json();
-      const mapped: BlockedIPEntry[] = (json.blocked_ips || []).map((ip: string) => ({
-        ip,
-        reason: 'Redis active block',
-        blocked_at: new Date().toISOString(),
-        ttl_remaining_seconds: 3600,
-        severity: 'CRITICAL',
-      }));
+      const mapped: BlockedIPEntry[] = (json.blocked_ips || []).map((ip: string) => ({ ip }));
       localStore.isLiveGateway = true;
       return { data: mapped, isLive: true };
     }
@@ -170,11 +167,10 @@ export async function addIpToBlocklist(ip: string, reason = 'manual_admin_action
     if (res.ok) {
       return await res.json();
     }
+    throw new Error(`Gateway returned HTTP ${res.status}`);
   } catch (e) {
-    // Local fallback
+    throw e instanceof Error ? e : new Error('Cannot reach the API gateway');
   }
-  localStore.addBlockedIp(ip, reason);
-  return { status: 'blocked', ip, reason };
 }
 
 /**
@@ -189,17 +185,16 @@ export async function removeIpFromBlocklist(ip: string) {
     if (res.ok) {
       return await res.json();
     }
+    throw new Error(`Gateway returned HTTP ${res.status}`);
   } catch (e) {
-    // Local fallback
+    throw e instanceof Error ? e : new Error('Cannot reach the API gateway');
   }
-  localStore.removeBlockedIp(ip);
-  return { status: 'unblocked', ip };
 }
 
 /**
  * Gateway Health Check
  */
-export async function fetchHealth(): Promise<{ data: HealthResponse; isLive: boolean }> {
+export async function fetchHealth(): Promise<{ data: HealthResponse | null; isLive: boolean }> {
   try {
     const res = await fetch(`${GATEWAY_URL}/gateway/health`, {
       signal: AbortSignal.timeout(2000),
@@ -211,156 +206,7 @@ export async function fetchHealth(): Promise<{ data: HealthResponse; isLive: boo
   } catch (err) {
     // offline
   }
-  return {
-    data: {
-      status: 'healthy',
-      version: '1.0.0',
-      service: 'api-gateway',
-      redis_connected: false,
-      kafka_connected: false,
-      ml_engine_connected: false,
-      uptime_seconds: 86400,
-    },
-    isLive: false,
-  };
+  return { data: null, isLive: false };
 }
 
-/**
- * Send request either to Gateway Shield (:8080) or direct to Victim (:8081)
- */
-export async function executeSimulatedRequest(
-  endpoint: string,
-  method: 'GET' | 'POST',
-  payload: any,
-  useShield = true
-): Promise<{
-  statusCode: number;
-  body: any;
-  latencyMs: number;
-  verdict?: RecentVerdict;
-  routedVia: string;
-}> {
-  const targetBase = useShield ? GATEWAY_URL : VICTIM_URL;
-  const targetUrl = `${targetBase}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-  const startTime = performance.now();
-
-  try {
-    const res = await fetch(targetUrl, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Demo-Source': 'Security-Dashboard',
-      },
-      body: method === 'POST' ? JSON.stringify(payload) : undefined,
-      signal: AbortSignal.timeout(4000),
-    });
-    const latency = Math.round(performance.now() - startTime);
-    let parsedBody: any;
-    try {
-      parsedBody = await res.json();
-    } catch {
-      parsedBody = await res.text();
-    }
-
-    return {
-      statusCode: res.status,
-      body: parsedBody,
-      latencyMs: latency,
-      routedVia: useShield ? 'API Gateway Shield (:8080)' : 'Direct Unprotected Victim (:8081)',
-    };
-  } catch (err: any) {
-    // If backend is not currently running, synthesize the exact response that the Gateway would give!
-    const latency = Math.round(performance.now() - startTime) + 4;
-    const isAttack =
-      JSON.stringify(payload || '').includes("' OR '1'='1'") ||
-      endpoint.includes('etc/shadow') ||
-      JSON.stringify(payload || '').includes('<script') ||
-      JSON.stringify(payload || '').includes('cat /etc/passwd');
-
-    let threat_type: any = 'Normal';
-    let risk_level: any = 'LOW';
-    let anomaly_score = 0.04;
-    let action: any = 'ALLOW';
-
-    if (JSON.stringify(payload || '').includes("' OR '1'='1'")) {
-      threat_type = 'SQLi';
-      risk_level = 'CRITICAL';
-      anomaly_score = 0.94;
-      action = 'BLOCK';
-    } else if (JSON.stringify(payload || '').includes('<script')) {
-      threat_type = 'XSS';
-      risk_level = 'HIGH';
-      anomaly_score = 0.83;
-      action = 'BLOCK';
-    } else if (endpoint.includes('etc/shadow')) {
-      threat_type = 'Path Traversal';
-      risk_level = 'CRITICAL';
-      anomaly_score = 0.92;
-      action = 'BLOCK';
-    } else if (JSON.stringify(payload || '').includes('cat /etc/passwd')) {
-      threat_type = 'Command Injection';
-      risk_level = 'CRITICAL';
-      anomaly_score = 0.96;
-      action = 'BLOCK';
-    }
-
-    const syntheticVerdict: RecentVerdict = {
-      request_id: `req_${Math.random().toString(36).substring(2, 11)}`,
-      timestamp: new Date().toISOString(),
-      client_ip: '198.51.100.99',
-      method,
-      path: endpoint,
-      action: useShield && isAttack ? 'BLOCK' : 'ALLOW',
-      threat_type: isAttack ? threat_type : 'Normal',
-      risk_level: isAttack ? risk_level : 'LOW',
-      anomaly_score,
-      threat_confidence: isAttack ? 0.975 : 0.99,
-      block_reason: useShield && isAttack ? 'ML_THREAT_DETECTED' : null,
-      ml_latency_ms: 3.8,
-      total_latency_ms: latency,
-      body: typeof payload === 'string' ? payload : JSON.stringify(payload),
-      attack_payload_highlight: isAttack ? JSON.stringify(payload) : null,
-    };
-
-    localStore.recordSimulatedVerdict(syntheticVerdict);
-
-    if (useShield && isAttack) {
-      return {
-        statusCode: 403,
-        body: {
-          error: 'threat_detected',
-          detail: `Threat detected: ${threat_type} (confidence: 97.5%, risk: ${risk_level})`,
-          request_id: syntheticVerdict.request_id,
-          timestamp: syntheticVerdict.timestamp,
-        },
-        latencyMs: latency,
-        verdict: syntheticVerdict,
-        routedVia: 'API Gateway Shield (:8080)',
-      };
-    } else if (!useShield && isAttack) {
-      // Unprotected victim breached!
-      return {
-        statusCode: 200,
-        body: {
-          status: 'SUCCESS',
-          message: 'VULNERABILITY EXPLOITED! Backend executed unescaped query.',
-          dumped_data: [
-            { id: 1, username: 'admin', email: 'admin@store.com', role: 'admin' },
-            { id: 2, username: 'user1', email: 'user1@store.com', role: 'customer' },
-            { id: 3, username: 'user2', email: 'user2@store.com', role: 'customer' },
-          ],
-        },
-        latencyMs: latency,
-        routedVia: 'Direct Unprotected Victim (:8081)',
-      };
-    } else {
-      return {
-        statusCode: 200,
-        body: { status: 'success', data: localStore.products },
-        latencyMs: latency,
-        verdict: syntheticVerdict,
-        routedVia: useShield ? 'API Gateway Shield (:8080)' : 'Direct Unprotected Victim (:8081)',
-      };
-    }
-  }
-}
+export { executeDemoRequest as executeSimulatedRequest } from './demoClient';

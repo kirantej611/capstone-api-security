@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity INT NOT NULL,
     price DECIMAL(10, 2) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS cart_items (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(id) ON DELETE CASCADE,
+    quantity INT NOT NULL CHECK (quantity >= 1),
+    UNIQUE (user_id, product_id)
+);
 """
 
 async def init_db():
@@ -97,9 +105,10 @@ async def init_db():
     )
     logger.info(f"Connection pool created for '{DATABASE_NAME}'")
     
-    # Step 3: Create tables
+    # Step 3: Create tables and apply additive migrations for existing databases
     async with pool.acquire() as conn:
         await conn.execute(SCHEMA_SQL)
+        await conn.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS stock INT DEFAULT 100")
         logger.info("Database schema initialized")
 
 

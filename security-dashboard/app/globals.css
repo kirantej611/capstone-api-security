@@ -1,8 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════════
-   SHIELDHUB // SECURITY MANAGEMENT ADMIN DASHBOARD DESIGN SYSTEM
-   Exact Match to Clean SaaS / SchoolHub Aesthetic:
-   Soft Light Canvas • Pastel Cards • Concentric Donut • Dual Bar Chart
-   ══════════════════════════════════════════════════════════════════════ */
+/* ShieldHub security dashboard styles */
 
 :root {
   --bg-page: #f3f6fc;
@@ -286,7 +282,7 @@ html, body {
   color: var(--text-muted);
 }
 
-/* 4 Pastel Top Cards Grid */
+/* Dashboard KPI cards */
 .pastel-cards-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -836,4 +832,232 @@ html, body {
 
 .hub-btn-danger:hover {
   background: #dc2626;
+}
+
+.hub-top-header {
+  justify-content: flex-start;
+}
+
+.dashboard-heading {
+  min-width: max-content;
+}
+
+.dashboard-heading h1 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.connection-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.connection-status.connected {
+  color: #15803d;
+}
+
+.connection-status.disconnected {
+  color: #b45309;
+}
+
+.hub-search-box {
+  margin-left: auto;
+}
+
+.pastel-cards-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.pastel-card:nth-child(5n + 1) {
+  background: var(--pastel-purple);
+  border: 1px solid var(--pastel-purple-border);
+}
+
+.pastel-card:nth-child(5n + 2) {
+  background: var(--pastel-yellow);
+  border: 1px solid var(--pastel-yellow-border);
+}
+
+.pastel-card:nth-child(5n + 3) {
+  background: var(--pastel-blue);
+  border: 1px solid var(--pastel-blue-border);
+}
+
+.pastel-card:nth-child(5n + 4) {
+  background: var(--pastel-orange);
+  border: 1px solid var(--pastel-orange-border);
+}
+
+.pastel-card:nth-child(5n) {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.dashboard-insights-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-subtitle {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.traffic-legend {
+  display: flex;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.traffic-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.threat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.threat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.threat-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.threat-count-pill {
+  min-width: 2rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.dashboard-empty-state {
+  padding: 1.5rem 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+.chart-tooltip strong {
+  color: var(--text-primary);
+}
+
+.pattern-token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  list-style: none;
+}
+
+.pattern-token-list li {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1200px) {
+  .pastel-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-insights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .pastel-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .hub-top-header {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .dashboard-heading {
+    flex: 1;
+  }
+
+  .hub-search-box {
+    order: 3;
+    width: 100%;
+    margin: 0;
+  }
+
+  .hub-user-actions {
+    margin-left: auto;
+  }
+
+  .traffic-legend {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
 }

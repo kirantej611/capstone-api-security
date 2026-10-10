@@ -16,12 +16,14 @@ interface VerdictFeedProps {
   verdicts: RecentVerdict[];
   onSelectVerdict: (verdict: RecentVerdict) => void;
   searchFilter?: string;
+  isLive: boolean;
 }
 
 export default function VerdictFeed({
   verdicts,
   onSelectVerdict,
   searchFilter = '',
+  isLive,
 }: VerdictFeedProps) {
   const [filterAction, setFilterAction] = useState<string>('ALL');
   const [internalQuery, setInternalQuery] = useState<string>('');
@@ -55,6 +57,8 @@ export default function VerdictFeed({
         return <span className="hub-badge hub-badge-allow">ALLOWED</span>;
       case 'RATE_LIMIT':
         return <span className="hub-badge hub-badge-rate">RATE LIMIT</span>;
+      case 'FLAG':
+        return <span className="hub-badge hub-badge-rate">FLAGGED</span>;
       default:
         return <span className="hub-badge">{action}</span>;
     }
@@ -66,12 +70,14 @@ export default function VerdictFeed({
         <div>
           <h3 className="card-title">Real-Time Threat Interception Stream</h3>
           <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            Live API gateway verdicts • Click any row for Explainable AI (XAI) forensic dossier
+            {isLive
+              ? 'Gateway verdicts • Select a row to inspect the available request and model details.'
+              : 'Gateway offline • Only locally simulated requests appear here; no sample telemetry is loaded.'}
           </span>
         </div>
 
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {['ALL', 'BLOCK', 'ALLOW', 'RATE_LIMIT'].map((tab) => (
+          {['ALL', 'BLOCK', 'ALLOW', 'RATE_LIMIT', 'FLAG'].map((tab) => (
             <button
               key={tab}
               onClick={() => setFilterAction(tab)}
@@ -83,7 +89,15 @@ export default function VerdictFeed({
                 borderColor: filterAction === tab ? '#bae6fd' : 'var(--border-light)',
               }}
             >
-              {tab === 'ALL' ? 'All' : tab}
+              {tab === 'ALL'
+                ? 'All'
+                : tab === 'BLOCK'
+                ? 'Blocked'
+                : tab === 'ALLOW'
+                ? 'Allowed'
+                : tab === 'RATE_LIMIT'
+                ? 'Rate limited'
+                : 'Flagged'}
             </button>
           ))}
         </div>
@@ -163,16 +177,20 @@ export default function VerdictFeed({
                   <td className="font-mono" style={{ fontSize: '0.76rem' }}>
                     <span
                       style={{
-                        color: (v.anomaly_score ?? 0) > 0.28 ? '#ef4444' : '#16a34a',
+                        color: v.anomaly_score == null
+                          ? 'var(--text-muted)'
+                          : v.action === 'BLOCK'
+                          ? '#ef4444'
+                          : '#16a34a',
                         fontWeight: 600,
                       }}
                     >
-                      {(v.anomaly_score ?? 0.04).toFixed(3)}
+                      {v.anomaly_score == null ? '—' : v.anomaly_score.toFixed(3)}
                     </span>
                   </td>
 
                   <td className="font-mono" style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                    {v.ml_latency_ms ? `${v.ml_latency_ms.toFixed(1)}ms` : '3.6ms'}
+                    {v.ml_latency_ms == null ? '—' : `${v.ml_latency_ms.toFixed(1)}ms`}
                   </td>
 
                   <td>
@@ -191,6 +209,13 @@ export default function VerdictFeed({
                 </tr>
               );
             })}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={9} className="dashboard-empty-state">
+                  No requests match the selected filters.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

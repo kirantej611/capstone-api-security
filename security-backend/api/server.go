@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -110,8 +109,12 @@ func getRiskScore(c *gin.Context) {
 	}
 	score, _ := strconv.ParseFloat(scoreStr, 64)
 
-	blocked, _ := rdb.Client.Exists(ctx, fmt.Sprintf("blocklist:%s", ip)).Result()
-	c.JSON(http.StatusOK, gin.H{"ip": ip, "score": score, "is_blocked": blocked > 0})
+	blocked, err := rdb.IsBlocked(ip)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ip": ip, "score": score, "is_blocked": blocked})
 }
 
 // DELETE /api/block/:ip — unblock an IP
@@ -121,14 +124,12 @@ func unblockIP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid IP address"})
 		return
 	}
-	ctx := c.Request.Context()
-
-	deleted, err := rdb.Client.Del(ctx, fmt.Sprintf("blocklist:%s", ip)).Result()
+	deleted, err := rdb.UnblockIP(ip)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if deleted == 0 {
+	if !deleted {
 		c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("IP %s was not blocked", ip)})
 		return
 	}
