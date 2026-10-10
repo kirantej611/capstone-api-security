@@ -19,6 +19,15 @@ _CANONICAL_HEADERS = {
     ),
     "Accept": "application/json",
 }
+_NON_DESTINATION_HEADERS = {
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host",
+    "origin",
+    "referer",
+    "user-agent",
+}
 _ATTACK_PATTERNS = {
     "SQLi": re.compile(
         r"\bunion(?:\s+|/\*.*?\*/)+(?:all(?:\s+|/\*.*?\*/)+)?select\b"
@@ -46,10 +55,11 @@ _ATTACK_PATTERNS = {
         re.IGNORECASE,
     ),
     "SSRF": re.compile(
+        r"(?:https?://|(?:url|uri|target|dest|destination|redirect|callback|"
+        r"endpoint|host)\s*=\s*)"
         r"(?:169\.254\.169\.254|metadata\.google\.internal|"
-        r"(?:https?://|=)(?:127\.0\.0\.1|localhost|0\.0\.0\.0)"
-        r"(?=[:/?&#\s]|$)|"
-        r"gopher://|dict://|ftp://)",
+        r"127\.0\.0\.1|localhost|0\.0\.0\.0)"
+        r"(?=[:/?&#\s]|$)|(?:gopher|dict|ftp)://",
         re.IGNORECASE,
     ),
 }
@@ -96,12 +106,23 @@ def detect_attack_indicators(
     for _ in range(2):
         decoded_payload = unquote_plus(decoded_payload)
 
+    ssrf_payload = " ".join(
+        [request_target, body]
+        + [
+            value
+            for name, value in headers.items()
+            if name.lower() not in _NON_DESTINATION_HEADERS
+        ]
+    )
+    for _ in range(2):
+        ssrf_payload = unquote_plus(ssrf_payload)
+
     evidence = {
         "SQLi": bool(_ATTACK_PATTERNS["SQLi"].search(decoded_payload)),
         "XSS": bool(_ATTACK_PATTERNS["XSS"].search(decoded_payload)),
         "PathTraversal": bool(_ATTACK_PATTERNS["PathTraversal"].search(decoded_payload)),
         "CommandInjection": bool(_ATTACK_PATTERNS["CommandInjection"].search(decoded_payload)),
-        "SSRF": bool(_ATTACK_PATTERNS["SSRF"].search(decoded_payload)),
+        "SSRF": bool(_ATTACK_PATTERNS["SSRF"].search(ssrf_payload)),
     }
     return evidence
 

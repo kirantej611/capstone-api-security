@@ -105,6 +105,20 @@ def test_attack_indicators_require_class_specific_payloads():
         "/api/fetch?url=localhost%3A8080%2Fadmin", "", {}
     )["SSRF"]
     assert not detect_attack_indicators(
+        "http://localhost:8080/api/products",
+        "",
+        {
+            "Host": "localhost:8080",
+            "Referer": "http://localhost:8080/shop",
+            "Origin": "http://localhost:3000",
+        },
+    )["SSRF"]
+    assert detect_attack_indicators(
+        "/api/fetch?url=http%3A%2F%2Flocalhost%3A8080%2Fadmin",
+        "",
+        {"Referer": "http://shop.example/products"},
+    )["SSRF"]
+    assert not detect_attack_indicators(
         "/api/products", "", {"Accept-Language": "en-US,en;q=0.9"}
     )["CommandInjection"]
     assert not detect_attack_indicators(
