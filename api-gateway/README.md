@@ -137,20 +137,22 @@ Docker Desktop can NAT LAN requests so every client appears to the gateway as th
 same Docker bridge IP. For a multi-device demo, publish the gateway on host
 loopback only, then run the host-side relay from the repository root. The relay
 uses the connected socket's peer IP and overwrites forwarded-IP headers supplied
-by clients.
+by clients. It listens on all host interfaces by default, so it does not need a
+hardcoded Wi-Fi address.
 
 ```powershell
 docker compose up -d api-gateway
-python .\api-gateway\lan_proxy.py --listen-host 10.214.252.246
+python .\api-gateway\lan_proxy.py
 ```
 
-Replace `10.214.252.246` with the current Wi-Fi IPv4 address shown by `ipconfig`.
-Configure the dashboard's `NEXT_PUBLIC_GATEWAY_URL` build value to
-`http://<wifi-ip>:8080` and rebuild the dashboard if the address changes.
-Participants then open `http://<wifi-ip>:3000`; their API requests go through
-the relay on port 8080. Keep the Docker gateway mapping on `127.0.0.1:8085` so
-LAN clients cannot bypass the relay. Allow inbound TCP ports 3000 and 8080 on
-the Windows private-network firewall if prompted. Stop the relay with Ctrl+C.
+Open `http://localhost:3000` on the host or `http://<current-wifi-ip>:3000` on
+another device. The dashboard derives the gateway URL from the hostname used to
+open it, so localhost users call `localhost:8080` and LAN users call
+`<current-wifi-ip>:8080`; no dashboard rebuild is required when DHCP changes the
+host address. Keep the Docker gateway mapping on `127.0.0.1:8085` so LAN clients
+cannot bypass the relay. Allow inbound TCP ports 3000 and 8080 on the Windows
+private-network firewall if prompted. The host relay must remain running; stop
+it with Ctrl+C.
 
 ## API Endpoints
 

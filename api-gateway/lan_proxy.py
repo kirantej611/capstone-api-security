@@ -145,15 +145,17 @@ def main():
     )
     parser.add_argument(
         "--listen-host",
-        required=True,
-        help="This computer's LAN interface address, e.g. 10.214.252.246",
+        default="0.0.0.0",
+        help="Host interface to listen on (default: all interfaces)",
     )
     parser.add_argument("--listen-port", type=int, default=8080)
     parser.add_argument("--upstream", default="http://127.0.0.1:8085")
     args = parser.parse_args()
 
     GatewayRelayHandler.upstream = args.upstream
-    server = ThreadingHTTPServer((args.listen_host, args.listen_port), GatewayRelayHandler)
+    server = ThreadingHTTPServer(
+        (args.listen_host, args.listen_port), GatewayRelayHandler
+    )
     server.daemon_threads = True
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.info(

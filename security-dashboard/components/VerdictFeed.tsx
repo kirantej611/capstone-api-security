@@ -11,43 +11,41 @@ import {
   Shield,
 } from 'lucide-react';
 import { GatewayAction, RecentVerdict } from '../lib/types';
+import { formatIstTime } from '../lib/formatters';
 
 interface VerdictFeedProps {
   verdicts: RecentVerdict[];
   onSelectVerdict: (verdict: RecentVerdict) => void;
-  searchFilter?: string;
   isLive: boolean;
 }
 
 export default function VerdictFeed({
   verdicts,
   onSelectVerdict,
-  searchFilter = '',
   isLive,
 }: VerdictFeedProps) {
   const [filterAction, setFilterAction] = useState<string>('ALL');
   const [internalQuery, setInternalQuery] = useState<string>('');
-
-  const activeQuery = searchFilter || internalQuery;
 
   const filtered = useMemo(() => {
     return verdicts.filter((v) => {
       if (filterAction !== 'ALL' && v.action !== filterAction) {
         return false;
       }
-      if (activeQuery.trim()) {
-        const q = activeQuery.toLowerCase();
+      if (internalQuery.trim()) {
+        const q = internalQuery.trim().toLowerCase();
         const matchesIp = v.client_ip.toLowerCase().includes(q);
         const matchesPath = v.path.toLowerCase().includes(q);
         const matchesId = v.request_id.toLowerCase().includes(q);
+        const matchesMethod = v.method.toLowerCase().includes(q);
         const matchesThreat = (v.threat_type || '').toLowerCase().includes(q);
-        if (!matchesIp && !matchesPath && !matchesId && !matchesThreat) {
+        if (!matchesIp && !matchesPath && !matchesId && !matchesMethod && !matchesThreat) {
           return false;
         }
       }
       return true;
     });
-  }, [verdicts, filterAction, activeQuery]);
+  }, [verdicts, filterAction, internalQuery]);
 
   const renderBadge = (action: GatewayAction) => {
     switch (action) {
@@ -76,30 +74,43 @@ export default function VerdictFeed({
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {['ALL', 'BLOCK', 'ALLOW', 'RATE_LIMIT', 'FLAG'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilterAction(tab)}
-              className="select-pill"
-              style={{
-                background: filterAction === tab ? 'var(--accent-cyan-light)' : '#f8fafc',
-                color: filterAction === tab ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                fontWeight: filterAction === tab ? 600 : 400,
-                borderColor: filterAction === tab ? '#bae6fd' : 'var(--border-light)',
-              }}
-            >
-              {tab === 'ALL'
-                ? 'All'
-                : tab === 'BLOCK'
-                ? 'Blocked'
-                : tab === 'ALLOW'
-                ? 'Allowed'
-                : tab === 'RATE_LIMIT'
-                ? 'Rate limited'
-                : 'Flagged'}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <label className="hub-search-box verdict-search-box">
+            <Search size={16} className="hub-search-icon" />
+            <input
+              type="search"
+              placeholder="Search requests, IPs, or paths..."
+              value={internalQuery}
+              onChange={(event) => setInternalQuery(event.target.value)}
+              className="hub-search-input"
+              aria-label="Search verdicts by request ID, method, IP, path, or threat"
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {['ALL', 'BLOCK', 'ALLOW', 'RATE_LIMIT', 'FLAG'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFilterAction(tab)}
+                className="select-pill"
+                style={{
+                  background: filterAction === tab ? 'var(--accent-cyan-light)' : '#f8fafc',
+                  color: filterAction === tab ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  fontWeight: filterAction === tab ? 600 : 400,
+                  borderColor: filterAction === tab ? '#bae6fd' : 'var(--border-light)',
+                }}
+              >
+                {tab === 'ALL'
+                  ? 'All'
+                  : tab === 'BLOCK'
+                    ? 'Blocked'
+                    : tab === 'ALLOW'
+                      ? 'Allowed'
+                      : tab === 'RATE_LIMIT'
+                        ? 'Rate limited'
+                        : 'Flagged'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -120,10 +131,6 @@ export default function VerdictFeed({
           </thead>
           <tbody>
             {filtered.slice(0, 15).map((v) => {
-              const timeOnly = v.timestamp.includes('T')
-                ? v.timestamp.split('T')[1].slice(0, 8)
-                : v.timestamp.slice(11, 19);
-
               return (
                 <tr
                   key={v.request_id}
@@ -131,7 +138,7 @@ export default function VerdictFeed({
                   onClick={() => onSelectVerdict(v)}
                 >
                   <td className="font-mono" style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                    {timeOnly}
+                    {formatIstTime(v.timestamp)}
                   </td>
 
                   <td className="font-mono" style={{ color: '#0284c7', fontSize: '0.75rem' }}>

@@ -37,7 +37,6 @@ export default function VerdictDetailModal({
   const highlighted = highlightAttackPayload(rawPayload);
   const probs = verdict.all_probabilities;
   const features = verdict.feature_importance;
-  const maxFeatureMagnitude = Math.max(0, ...Object.values(features || {}).map(Math.abs));
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(verdict.request_id);
@@ -177,9 +176,13 @@ export default function VerdictDetailModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.65rem' }}>
             <Info size={16} color="#0284c7" />
             <h4 style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-              Feature importance (when supplied by the model)
+              Anomaly feature attribution (when supplied by the model)
             </h4>
           </div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0.6rem' }}>
+            Normalized sensitivity of the autoencoder anomaly score to one-feature-at-a-time replacement
+            with normal reference values. This is not a class-specific explanation.
+          </p>
 
           <div
             style={{
@@ -189,15 +192,13 @@ export default function VerdictDetailModal({
               border: '1px solid var(--border-light)',
             }}
           >
-            {features && Object.keys(features).length > 0 ? Object.entries(features).map(([featKey, delta]) => {
+            {features && Object.keys(features).length > 0 ? Object.entries(features).map(([featKey, contribution]) => {
               const meta = FEATURE_METADATA[featKey] || {
                 label: featKey,
                 description: 'Extracted vector signal',
-                unit: '',
+                unit: 'normalized attribution',
               };
-              const widthPct = maxFeatureMagnitude > 0
-                ? (Math.abs(delta) / maxFeatureMagnitude) * 100
-                : 0;
+              const contributionPct = Math.max(0, Math.min(100, contribution * 100));
 
               return (
                 <div key={featKey} style={{ marginBottom: '0.65rem' }}>
@@ -207,11 +208,11 @@ export default function VerdictDetailModal({
                       <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>({meta.description})</span>
                     </div>
                     <span className="font-mono" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                      {delta.toFixed(2)} {meta.unit}
+                      {contributionPct.toFixed(1)}%
                     </span>
                   </div>
                   <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${widthPct}%`, height: '100%', background: '#38bdf8' }} />
+                    <div style={{ width: `${contributionPct}%`, height: '100%', background: '#38bdf8' }} />
                   </div>
                 </div>
               );

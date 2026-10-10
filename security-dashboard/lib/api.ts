@@ -10,6 +10,7 @@ import {
   INITIAL_PRODUCTS,
   INITIAL_REVIEWS,
 } from './mockData';
+import { getGatewayUrl } from './serviceUrls';
 
 export const EMPTY_STATS: GatewayStats = {
   total_requests: 0,
@@ -79,15 +80,12 @@ class DashboardStore {
 
 export const localStore = new DashboardStore();
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:8080';
-const VICTIM_URL = process.env.NEXT_PUBLIC_VICTIM_URL || 'http://localhost:8081';
-
 /**
  * Fetch Gateway Statistics
  */
 export async function fetchGatewayStats(): Promise<{ data: GatewayStats; isLive: boolean }> {
   try {
-    const res = await fetch(`${GATEWAY_URL}/gateway/stats`, {
+    const res = await fetch(`${getGatewayUrl()}/gateway/stats`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
@@ -112,7 +110,7 @@ export async function fetchRecentVerdicts(
   limit = 50
 ): Promise<{ data: RecentVerdict[]; isLive: boolean }> {
   try {
-    const res = await fetch(`${GATEWAY_URL}/gateway/verdicts/recent?limit=${limit}`, {
+    const res = await fetch(`${getGatewayUrl()}/gateway/verdicts/recent?limit=${limit}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
@@ -135,7 +133,7 @@ export async function fetchRecentVerdicts(
  */
 export async function fetchBlocklist(): Promise<{ data: BlockedIPEntry[]; isLive: boolean }> {
   try {
-    const res = await fetch(`${GATEWAY_URL}/gateway/blocklist`, {
+    const res = await fetch(`${getGatewayUrl()}/gateway/blocklist`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
@@ -162,7 +160,7 @@ export async function addIpToBlocklist(ip: string, reason = 'manual_admin_action
   try {
     const query = new URLSearchParams({ reason });
     const res = await fetch(
-      `${GATEWAY_URL}/gateway/blocklist/${encodeURIComponent(ip)}?${query.toString()}`,
+      `${getGatewayUrl()}/gateway/blocklist/${encodeURIComponent(ip)}?${query.toString()}`,
       {
       method: 'POST',
       signal: AbortSignal.timeout(2000),
@@ -182,7 +180,7 @@ export async function addIpToBlocklist(ip: string, reason = 'manual_admin_action
  */
 export async function removeIpFromBlocklist(ip: string) {
   try {
-    const res = await fetch(`${GATEWAY_URL}/gateway/blocklist/${encodeURIComponent(ip)}`, {
+    const res = await fetch(`${getGatewayUrl()}/gateway/blocklist/${encodeURIComponent(ip)}`, {
       method: 'DELETE',
       signal: AbortSignal.timeout(2000),
     });
@@ -200,7 +198,7 @@ export async function removeIpFromBlocklist(ip: string) {
  */
 export async function fetchHealth(): Promise<{ data: HealthResponse | null; isLive: boolean }> {
   try {
-    const res = await fetch(`${GATEWAY_URL}/gateway/health`, {
+    const res = await fetch(`${getGatewayUrl()}/gateway/health`, {
       signal: AbortSignal.timeout(2000),
     });
     if (res.ok) {

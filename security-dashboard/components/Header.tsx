@@ -1,19 +1,17 @@
 'use client';
 
 import React from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
   onRefresh: () => void;
+  isRefreshing: boolean;
   isLive: boolean;
 }
 
 export default function Header({
-  searchQuery,
-  setSearchQuery,
   onRefresh,
+  isRefreshing,
   isLive,
 }: HeaderProps) {
   return (
@@ -26,25 +24,15 @@ export default function Header({
         </span>
       </div>
 
-      <div className="hub-search-box">
-        <Search size={16} className="hub-search-icon" />
-        <input
-          type="text"
-          placeholder="Search requests, IPs, or paths..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="hub-search-input"
-        />
-      </div>
-
       <div className="hub-user-actions">
         <button
           onClick={onRefresh}
           className="icon-circle-btn"
-          title="Refresh telemetry"
-          aria-label="Refresh telemetry"
+          title={isRefreshing ? 'Refreshing telemetry' : 'Refresh telemetry'}
+          aria-label={isRefreshing ? 'Refreshing telemetry' : 'Refresh telemetry'}
+          disabled={isRefreshing}
         >
-          <RefreshCw size={15} />
+          <RefreshCw size={15} className={isRefreshing ? 'icon-spinning' : undefined} />
         </button>
       </div>
     </header>

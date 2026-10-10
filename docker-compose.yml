@@ -164,16 +164,10 @@ services:
   # ── Security Dashboard (Next.js React Frontend) ──
   # Real-time monitoring UI with interactive attack simulator
   security-dashboard:
-    build:
-      context: ./security-dashboard
-      args:
-        NEXT_PUBLIC_GATEWAY_URL: "http://10.214.252.246:8080"
-        NEXT_PUBLIC_VICTIM_URL: "http://10.214.252.246:8081"
+    build: ./security-dashboard
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_GATEWAY_URL: "http://10.214.252.246:8080"
-      NEXT_PUBLIC_VICTIM_URL: "http://10.214.252.246:8081"
       NEXT_PUBLIC_SECURITY_BACKEND_URL: "http://localhost:8082"
     depends_on:
       - api-gateway

@@ -63,6 +63,10 @@ Set `VULN_MODE=true` (default) to enable intentional vulnerabilities. Set `VULN_
 | user1 | password123 | customer |
 | user2 | password456 | customer |
 
+## Storefront Locale
+
+The demo storefront displays Indian rupees and India Standard Time. Existing USD-denominated product prices and historical order amounts are converted once at a fixed demo rate of ₹83.50 per USD when the database initializes; newly seeded prices and sample shipping addresses are already INR/India-localized.
+
 ## Testing
 
 ```bash

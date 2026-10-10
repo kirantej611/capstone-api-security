@@ -1,10 +1,13 @@
 import asyncpg
 import logging
+from decimal import Decimal
 from app.config import DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME, MAINTENANCE_DB
 
 logger = logging.getLogger(__name__)
 
 pool: asyncpg.Pool = None
+
+USD_TO_INR_DEMO_RATE = Decimal("83.50")
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
@@ -109,6 +112,47 @@ async def init_db():
     async with pool.acquire() as conn:
         await conn.execute(SCHEMA_SQL)
         await conn.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS stock INT DEFAULT 100")
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_migrations (
+                version VARCHAR(100) PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT NOW()
+            )
+            """
+        )
+        async with conn.transaction():
+            migrated = await conn.fetchval(
+                """
+                INSERT INTO app_migrations (version)
+                VALUES ('20260622_convert_store_prices_to_inr')
+                ON CONFLICT (version) DO NOTHING
+                RETURNING version
+                """
+            )
+            if migrated:
+                await conn.execute(
+                    "UPDATE products SET price = ROUND(price * $1, 2)",
+                    USD_TO_INR_DEMO_RATE,
+                )
+                await conn.execute(
+                    "UPDATE order_items SET price = ROUND(price * $1, 2)",
+                    USD_TO_INR_DEMO_RATE,
+                )
+                await conn.execute(
+                    """
+                    UPDATE orders AS o
+                    SET total = COALESCE(
+                        (
+                            SELECT SUM(oi.price * oi.quantity)
+                            FROM order_items AS oi
+                            WHERE oi.order_id = o.id
+                        ),
+                        ROUND(o.total * $1, 2)
+                    )
+                    """,
+                    USD_TO_INR_DEMO_RATE,
+                )
+                logger.info("Converted existing storefront prices and orders to INR")
         logger.info("Database schema initialized")
 
 
