@@ -1,7 +1,4 @@
-"""
-Ensemble decision engine that combines VAE anomaly detection
-and the DeepResidualClassifier for robust, calibrated predictions.
-"""
+"""Decision policy combining calibrated classes and request-level evidence."""
 import torch
 import numpy as np
 from typing import Dict, Any, Optional
@@ -46,32 +43,18 @@ class TemperatureScaling:
 
 class EnsembleDecisionEngine:
     """
-    Combines VAE anomaly detection + classifier predictions into
-    a unified, calibrated threat assessment.
-
-    Decision logic:
-    1. VAE produces anomaly_score (reconstruction error + KL)
-    2. Classifier produces class probabilities
-    3. Ensemble combines both for final verdict
-
-    The classifier is weighted higher (0.6) since it is the discriminative
-    model trained to distinguish attack types.  The VAE is a novelty
-    detector (0.4) that catches zero-day / unknown attacks.
+    Report known attacks only when class-specific request evidence corroborates
+    them. Report unknown threats when the VAE score and suspicious request
+    structure agree; classifier confidence alone does not trigger an alert.
     """
 
     def __init__(
         self,
-        per_class_thresholds: Optional[Dict[int, float]] = None,
         global_threshold: float = 0.5,
         calibrator: Optional[TemperatureScaling] = None,
-        vae_weight: float = 0.4,
-        classifier_weight: float = 0.6,
     ):
-        self.per_class_thresholds = per_class_thresholds or {}
         self.global_threshold = global_threshold
         self.calibrator = calibrator or TemperatureScaling()
-        self.vae_weight = vae_weight
-        self.classifier_weight = classifier_weight
 
     def decide(
         self,

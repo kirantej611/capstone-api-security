@@ -93,7 +93,6 @@ class ModelState:
         self.scaler = None
         self.ensemble: Optional[EnsembleDecisionEngine] = None
         self.global_threshold = 0.0
-        self.per_class_thresholds = {}
         self.label_mapping = {}
         self.temperature = 1.0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -113,9 +112,6 @@ class ModelState:
             with open('saved_models/anomaly_threshold.json', 'r') as f:
                 threshold_data = json.load(f)
                 self.global_threshold = threshold_data['threshold']
-                self.per_class_thresholds = {
-                    int(k): v for k, v in threshold_data.get('per_class_thresholds', {}).items()
-                }
             logger.info(f"Global threshold: {self.global_threshold:.6f}")
 
             # ── Load Label Mapping ───────────────────────────
@@ -177,7 +173,6 @@ class ModelState:
             # ── Setup Ensemble Engine ────────────────────────
             calibrator = TemperatureScaling(temperature=self.temperature)
             self.ensemble = EnsembleDecisionEngine(
-                per_class_thresholds=self.per_class_thresholds,
                 global_threshold=self.global_threshold,
                 calibrator=calibrator,
             )
@@ -312,10 +307,10 @@ def run_prediction(req: PredictRequest) -> dict:
         raw_logits=logits,
         label_mapping=model_state.label_mapping,
         attack_indicators=detect_attack_indicators(
-            model_url, model_body, model_headers
+            req.url, req.body, req.headers
         ),
         novelty_indicators=has_novel_attack_indicators(
-            model_url, req.method, model_body, model_headers
+            req.url, req.method, req.body, req.headers
         ),
     )
 

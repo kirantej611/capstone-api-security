@@ -2,7 +2,7 @@
 
 import re
 from typing import Dict, Mapping, Tuple
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote_plus, urlsplit
 
 from utils.feature_extraction import extract_features
 
@@ -21,7 +21,7 @@ _CANONICAL_HEADERS = {
 }
 _ATTACK_PATTERNS = {
     "SQLi": re.compile(
-        r"\bunion\s+(?:all\s+)?select\b"
+        r"\bunion(?:\s+|/\*.*?\*/)+(?:all(?:\s+|/\*.*?\*/)+)?select\b"
         r"|\b(?:or|and)\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+"
         r"|['\"]\s*(?:or|and)\s+['\"]?\w+"
         r"|\b(?:drop\s+table|insert\s+into|delete\s+from|xp_cmdshell|"
@@ -30,7 +30,7 @@ _ATTACK_PATTERNS = {
     ),
     "XSS": re.compile(
         r"<\s*script\b|javascript\s*:|<\s*iframe\b|"
-        r"\bon(?:error|load|click|mouseover)\s*=|"
+        r"\bon[a-z]+\s*=|"
         r"\balert\s*\(|document\.(?:cookie|write|location)|\beval\s*\(",
         re.IGNORECASE,
     ),
@@ -40,13 +40,15 @@ _ATTACK_PATTERNS = {
         re.IGNORECASE,
     ),
     "CommandInjection": re.compile(
-        r"(?:;|\||&&|`|\$\()\s*"
+        r"(?:;|\||&&|`|\$\(|\$\{?IFS\}?|\n)\s*"
+        r"(?:/(?:usr/)?bin/)?"
         r"(?:id|whoami|uname|cat|ls|curl|wget|nc|bash|sh|python|perl|ruby)\b",
         re.IGNORECASE,
     ),
     "SSRF": re.compile(
         r"(?:169\.254\.169\.254|metadata\.google\.internal|"
-        r"127\.0\.0\.1|localhost|(?:https?://|=)0\.0\.0\.0|"
+        r"(?:https?://|=)(?:127\.0\.0\.1|localhost|0\.0\.0\.0)"
+        r"(?=[:/?&#\s]|$)|"
         r"gopher://|dict://|ftp://)",
         re.IGNORECASE,
     ),
@@ -82,13 +84,17 @@ def detect_attack_indicators(
     url: str, body: str, headers: Mapping[str, str]
 ) -> Dict[str, bool]:
     """Find class-specific payload evidence independent of model confidence."""
-    payload_parts = [url, body]
+    parsed_url = urlsplit(url)
+    request_target = parsed_url.path
+    if parsed_url.query:
+        request_target = f"{request_target}?{parsed_url.query}"
+    payload_parts = [request_target, body]
     payload_parts.extend(headers.values())
     payload = " ".join(part for part in payload_parts if part)
 
     decoded_payload = payload
     for _ in range(2):
-        decoded_payload = unquote(decoded_payload)
+        decoded_payload = unquote_plus(decoded_payload)
 
     evidence = {
         "SQLi": bool(_ATTACK_PATTERNS["SQLi"].search(decoded_payload)),
@@ -104,13 +110,18 @@ def has_novel_attack_indicators(
     url: str, method: str, body: str, headers: Mapping[str, str]
 ) -> bool:
     """Require suspicious payload structure alongside VAE novelty."""
-    decoded_url, decoded_body = url, body
+    parsed_url = urlsplit(url)
+    request_target = parsed_url.path or "/"
+    if parsed_url.query:
+        request_target = f"{request_target}?{parsed_url.query}"
+
+    decoded_url, decoded_body = request_target, body
     for _ in range(2):
-        decoded_url = unquote(decoded_url)
-        decoded_body = unquote(decoded_body)
+        decoded_url = unquote_plus(decoded_url)
+        decoded_body = unquote_plus(decoded_body)
 
     feature_sets = (
-        extract_features(url, method, body, dict(headers)),
+        extract_features(request_target, method, body, dict(headers)),
         extract_features(decoded_url, method, decoded_body, dict(headers)),
     )
     for features in feature_sets:

@@ -69,6 +69,12 @@ def test_attack_indicators_require_class_specific_payloads():
         "/api/login?username=admin%27%20OR%201=1", "", {}
     )["SQLi"]
     assert detect_attack_indicators(
+        "/api/search?q=UNION%2F%2A%2A%2FSELECT", "", {}
+    )["SQLi"]
+    assert detect_attack_indicators(
+        "/api/search?q=UNION+SELECT", "", {}
+    )["SQLi"]
+    assert detect_attack_indicators(
         "/api/search?q=%3Cscript%3Ealert(1)%3C/script%3E", "", {}
     )["XSS"]
     assert detect_attack_indicators(
@@ -78,7 +84,25 @@ def test_attack_indicators_require_class_specific_payloads():
         "CommandInjection"
     ]
     assert detect_attack_indicators(
+        "/api/run?cmd=%24IFS%20id", "", {}
+    )["CommandInjection"]
+    assert detect_attack_indicators(
+        "/api/run?cmd=%3B%20%2Fbin%2Fbash%20-c%20id", "", {}
+    )["CommandInjection"]
+    assert detect_attack_indicators(
+        "/api/run?cmd=%0Awhoami", "", {}
+    )["CommandInjection"]
+    assert detect_attack_indicators(
+        "/api/comments", '{"value":"<svg onfocus=alert(1)>"}', {}
+    )["XSS"]
+    assert detect_attack_indicators(
         "/api/fetch?url=http%3A%2F%2F169.254.169.254%2Flatest", "", {}
+    )["SSRF"]
+    assert detect_attack_indicators(
+        "http://localhost:8080/api/products", "", {"Host": "localhost:8080"}
+    )["SSRF"] is False
+    assert detect_attack_indicators(
+        "/api/fetch?url=localhost%3A8080%2Fadmin", "", {}
     )["SSRF"]
     assert not detect_attack_indicators(
         "/api/products", "", {"Accept-Language": "en-US,en;q=0.9"}
@@ -91,6 +115,30 @@ def test_attack_indicators_require_class_specific_payloads():
     assert not detect_attack_indicators("/api/products?comment=--help", "", {})[
         "SQLi"
     ]
+
+
+def test_indicators_inspect_original_headers_not_model_normalized_headers():
+    original_headers = {
+        "User-Agent": "Mozilla/5.0 () { :; }; /bin/bash -c id",
+        "Referer": "https://shop.example/search?q=UNION+SELECT",
+    }
+    _, _, model_headers = normalize_request_for_inference(
+        "/api/products", "", original_headers
+    )
+
+    assert "Referer" not in model_headers
+    assert model_headers["User-Agent"].startswith("Mozilla/5.0 (Windows")
+    assert detect_attack_indicators(
+        "http://localhost:8080/api/products", "", original_headers
+    )["CommandInjection"]
+    assert detect_attack_indicators(
+        "http://localhost:8080/api/products", "", original_headers
+    )["SQLi"]
+    assert not any(
+        detect_attack_indicators(
+            "http://localhost:8080/api/products", "", model_headers
+        ).values()
+    )
 
 
 def test_unsupported_anomaly_is_flagged_as_unknown_not_block_level():
@@ -138,6 +186,12 @@ def test_novel_payload_indicator_requires_anomalous_score():
     )
     assert has_novel_attack_indicators(
         "/api/search?q=%24%7B%7B7*7%7D%7D%3B%3b", "GET", "", {}
+    )
+    assert not has_novel_attack_indicators(
+        "http://localhost:8080/api/products",
+        "GET",
+        "",
+        {"Host": "localhost:8080"},
     )
 
 

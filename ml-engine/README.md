@@ -36,7 +36,7 @@ HTTP Request → Feature Extraction (42 features)
 | Feature Extraction | `utils/feature_extraction.py` | 42 numeric features covering SQL, XSS, path traversal, command injection, SSRF, encoding patterns, entropy analysis |
 | VAE | `models/autoencoder.py` | Variational Autoencoder with skip connections, residual blocks, multi-scale reconstruction |
 | Classifier | `models/classifier.py` | Deep Residual MLP with multi-head feature-group attention, Focal Loss |
-| Ensemble | `models/ensemble.py` | Weighted decision engine with temperature calibration, per-class thresholds |
+| Ensemble | `models/ensemble.py` | Evidence-based decision policy with classifier calibration and VAE novelty scoring |
 | API | `api/main.py` | FastAPI server with `/predict`, `/predict/batch`, `/health`, `/model/status` |
 
 ## Attack Classes (6)
@@ -84,8 +84,8 @@ classes; the API gateway waits for that health check before starting.
 - **Augmentation**: None → Mixup (α=0.2)
 - **XAI**: Mocked zeros → perturbation-based feature importance
 - **Calibration**: None → temperature scaling on validation set
-- **Thresholds**: Single global → per-class adaptive thresholds
-- **Inference**: Single model → ensemble (VAE × Classifier) with composite scoring
+- **Training thresholds**: Per-class thresholds are calculated for evaluation; inference uses the global novelty threshold with request evidence
+- **Inference**: Classifier attribution and VAE novelty are checked against request indicators before assigning a risk level
 
 ## Inference policy
 
