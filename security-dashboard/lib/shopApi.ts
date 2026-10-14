@@ -1,7 +1,4 @@
-const isServer = typeof window === 'undefined';
-const GATEWAY_URL = isServer 
-  ? process.env.INTERNAL_GATEWAY_URL || 'http://api-gateway:8080'
-  : '/api/proxy/gateway-root';
+import { getGatewayUrl } from './serviceUrls';
 
 const TOKEN_KEY = 'aurora.shop.token';
 const USER_KEY = 'aurora.shop.user';
@@ -135,7 +132,7 @@ export async function shopRequest<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${GATEWAY_URL}${path}`, {
+    response = await fetch(`${getGatewayUrl()}${path}`, {
       ...init,
       headers,
       cache: 'no-store',

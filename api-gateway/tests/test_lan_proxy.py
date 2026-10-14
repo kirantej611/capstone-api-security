@@ -1,6 +1,12 @@
 import unittest
+from io import BytesIO
 
-from lan_proxy import _client_ip, _forward_headers
+from lan_proxy import (
+    UpstreamResponseTooLarge,
+    _client_ip,
+    _forward_headers,
+    _read_bounded_response,
+)
 
 
 class LanProxyTests(unittest.TestCase):
@@ -27,6 +33,13 @@ class LanProxyTests(unittest.TestCase):
         self.assertNotIn("Forwarded", forwarded)
         self.assertNotIn("X-Forwarded-Host", forwarded)
         self.assertNotIn("X-Trace", forwarded)
+
+    def test_read_bounded_response_accepts_body_at_limit(self):
+        self.assertEqual(_read_bounded_response(BytesIO(b"12345"), 5), b"12345")
+
+    def test_read_bounded_response_stops_after_limit(self):
+        with self.assertRaises(UpstreamResponseTooLarge):
+            _read_bounded_response(BytesIO(b"123456"), 5)
 
 
 if __name__ == "__main__":

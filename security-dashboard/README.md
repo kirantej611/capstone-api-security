@@ -15,6 +15,8 @@ The frontend dashboard for the **Deep Learning-Driven API Attack Detection Syste
 7. **IP blocklist manager**: Add and remove entries. Only fields returned by the gateway are shown; unavailable TTL, severity, and timestamps are not fabricated.
 8. **Victim storefront and system topology**: Separate dashboard views for the demo application and service map.
 
+The dashboard and storefront format monetary values in Indian rupees and display timestamps in India Standard Time (Asia/Kolkata), independent of the browser's timezone.
+
 When gateway telemetry is unavailable, dashboard metrics and lists start empty and the connection status is shown. The dashboard does not substitute seeded traffic or sample metrics for live data.
 
 ---
@@ -58,5 +60,5 @@ npm start
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `NEXT_PUBLIC_GATEWAY_URL` | `http://localhost:8080` | URL of Member 2's API Gateway Shield |
-| `NEXT_PUBLIC_VICTIM_URL` | `http://localhost:8081` | URL of Member 3's Victim E-Commerce Backend |
+| `NEXT_PUBLIC_GATEWAY_URL` | `http://localhost:8080` | Server-side fallback for the API Gateway; browser requests derive the host from the dashboard URL |
+| `NEXT_PUBLIC_VICTIM_URL` | `http://127.0.0.1:8081` | Loopback-only target for the opt-in direct demo; do not expose the victim service to LAN clients |

@@ -186,11 +186,9 @@ class RedisService:
 
         key = f"{self.BURST_LIMIT_PREFIX}{ip}"
         try:
-            async with self._client.pipeline(transaction=True) as pipe:
-                pipe.incr(key)
-                pipe.expire(key, settings.burst_limit_window)
-                results = await pipe.execute()
-            current_count = results[0]
+            current_count = await self._client.incr(key)
+            if current_count == 1:
+                await self._client.expire(key, settings.burst_limit_window)
             return current_count <= settings.burst_limit_max_requests, current_count
         except Exception as exc:
             logger.warning("redis_burst_limit_check_failed", ip=ip, error=str(exc))

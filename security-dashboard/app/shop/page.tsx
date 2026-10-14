@@ -10,6 +10,7 @@ import {
   listCategories,
   listProducts,
 } from '../../lib/shopApi';
+import { formatInr } from '../../lib/formatters';
 
 const TILES: Record<string, { bg: string; emoji: string }> = {
   electronics: { bg: '#dbeafe', emoji: '💻' },
@@ -92,8 +93,8 @@ export default function ShopCatalogPage() {
   return (
     <div>
       <section className="shop-hero">
-        <h1>Aurora Boutique</h1>
-        <p>Everyday catalog served from the live e-commerce API through the gateway.</p>
+        <h1>Aurora Boutique India</h1>
+        <p>Everyday essentials, priced in Indian rupees and served securely through the API gateway.</p>
       </section>
 
       <form className="shop-toolbar" onSubmit={onSearch}>
@@ -144,7 +145,7 @@ export default function ShopCatalogPage() {
               <div className="shop-card-body">
                 <strong>{product.name}</strong>
                 <p style={{ color: '#52606d', fontSize: '0.88rem' }}>{product.description}</p>
-                <span className="shop-price">${product.price.toFixed(2)}</span>
+                <span className="shop-price">{formatInr(product.price)}</span>
                 <span style={{ fontSize: '0.8rem', color: '#7b8794' }}>In stock: {product.stock}</span>
                 <Link href={`/shop/product/${product.id}`}>View details</Link>
                 <button className="shop-btn" type="button" onClick={() => handleAdd(product)}>

@@ -13,7 +13,7 @@ from fastapi import Response
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.schemas import GatewayAction, MLPredictResponse
+from app.schemas import GatewayAction, MLPredictResponse, RecentVerdict
 
 
 # ── Fixtures ──
@@ -56,6 +56,31 @@ class TestHealthEndpoints:
         resp = client.get("/gateway/verdicts/recent")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
+
+    def test_recent_verdicts_omits_request_context(self, client, monkeypatch):
+        verdict = RecentVerdict(
+            request_id="request-1",
+            timestamp="2026-10-14T00:00:00Z",
+            client_ip="192.0.2.10",
+            method="POST",
+            path="/api/login",
+            action=GatewayAction.ALLOW,
+            headers={"x-private": "value"},
+            body='{"password":"secret"}',
+            query_params={"token": "secret"},
+        )
+        monkeypatch.setattr(
+            "app.main.metrics_tracker.get_recent_verdicts",
+            lambda limit: [verdict],
+        )
+
+        response = client.get("/gateway/verdicts/recent")
+
+        assert response.status_code == 200
+        result = response.json()[0]
+        assert "headers" not in result
+        assert "body" not in result
+        assert "query_params" not in result
 
     def test_blocklist_endpoint(self, client):
         """Blocklist endpoint should return blocked IPs."""
@@ -143,7 +168,7 @@ class TestProxyPipeline:
     @patch("app.proxy_handler.redis_service")
     @patch("app.proxy_handler.kafka_service")
     @patch("app.proxy_handler.ml_engine_client")
-    def test_recent_verdict_contains_redacted_request_and_model_details(
+    def test_recent_verdict_keeps_redacted_context_private_and_exposes_model_details(
         self, mock_ml, mock_kafka, mock_redis, mock_forward, client
     ):
         mock_redis.is_ip_blocked = AsyncMock(return_value=False)
@@ -186,7 +211,9 @@ class TestProxyPipeline:
         assert dashboard_verdict["all_probabilities"] == {"Normal": 0.09, "SQLi": 0.91}
         assert dashboard_verdict["ml_latency_ms"] == 7.5
         assert dashboard_verdict["total_latency_ms"] is not None
-        assert "must-not-be-displayed" not in dashboard_verdict["body"]
+        assert "headers" not in dashboard_verdict
+        assert "body" not in dashboard_verdict
+        assert "query_params" not in dashboard_verdict
 
     @patch("app.proxy_handler.redis_service")
     @patch("app.proxy_handler.kafka_service")

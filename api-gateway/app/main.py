@@ -20,7 +20,7 @@ from app.logging_config import get_logger, setup_logging
 from app.metrics import metrics_tracker
 from app.middleware import CorrelationIDMiddleware, TimingMiddleware
 from app.proxy_handler import handle_request
-from app.schemas import GatewayStats, HealthResponse, RecentVerdict
+from app.schemas import GatewayStats, HealthResponse, RecentVerdictResponse
 from app.services.kafka_service import kafka_service
 from app.services.ml_engine_client import ml_engine_client
 from app.services.redis_service import redis_service
@@ -131,12 +131,22 @@ async def get_stats():
     return metrics_tracker.get_stats(active_blocked_ips=blocked_count)
 
 
-@app.get("/gateway/verdicts/recent", response_model=List[RecentVerdict], tags=["Dashboard"])
+@app.get(
+    "/gateway/verdicts/recent",
+    response_model=List[RecentVerdictResponse],
+    tags=["Dashboard"],
+)
 async def get_recent_verdicts(limit: int = 50):
     """
     Returns the most recent gateway verdicts for the dashboard live feed.
     """
-    return metrics_tracker.get_recent_verdicts(limit=min(limit, 100))
+    verdicts = metrics_tracker.get_recent_verdicts(limit=min(limit, 100))
+    return [
+        RecentVerdictResponse.model_validate(
+            verdict.model_dump(exclude={"headers", "body", "query_params"})
+        )
+        for verdict in verdicts
+    ]
 
 
 @app.get("/gateway/blocklist", tags=["Admin"])
@@ -175,13 +185,7 @@ import time
 import re
 import httpx
 import asyncio
-import google.generativeai as genai
 from fastapi import Request, HTTPException
-
-# Initialize Gemini Client (expects GEMINI_API_KEY environment variable)
-api_key = os.environ.get("GEMINI_API_KEY", "dummy-key-if-not-set")
-if api_key != "dummy-key-if-not-set":
-    genai.configure(api_key=api_key)
 
 SYSTEM_PROMPT = """You are Alex, a friendly, approachable security copilot on the AEGIS-AI team.
 Your job is to explain security events, system health, and threat findings in clear, human, conversational language—like a helpful teammate chatting on Slack.
@@ -206,7 +210,13 @@ class ChatbotRouter:
 
     def _check_rate_limit(self, client_ip: str) -> bool:
         now = time.time()
-        self.rate_limits[client_ip] = [ts for ts in self.rate_limits.get(client_ip, []) if now - ts < 60]
+        active_rate_limits = {}
+        for ip, timestamps in self.rate_limits.items():
+            active_timestamps = [ts for ts in timestamps if now - ts < 60]
+            if active_timestamps:
+                active_rate_limits[ip] = active_timestamps
+        self.rate_limits = active_rate_limits
+        self.rate_limits.setdefault(client_ip, [])
         if len(self.rate_limits[client_ip]) >= self.MAX_REQS_PER_MIN:
             return False
         self.rate_limits[client_ip].append(now)
@@ -243,7 +253,7 @@ class ChatbotRouter:
         try:
             verdicts = metrics_tracker.get_recent_verdicts(limit=25)
             threat_verdicts = [v for v in verdicts if v.action in ("BLOCK", "RATE_LIMIT", "FLAG")]
-            for v in threat_verdicts[-3:]:
+            for v in threat_verdicts[:3]:
                 recent_threats.append(
                     f"{v.threat_type} attack attempt on {v.method} {v.path} from {v.client_ip}"
                 )
@@ -283,7 +293,7 @@ class ChatbotRouter:
         threats = data["recent_threats"]
         if threats:
             return (
-                f"⚠️ Here's the latest threat we neutralized: {threats[-1]}. "
+                f"⚠️ Here's the latest threat we neutralized: {threats[0]}. "
                 "Our ML firewall intercepted it immediately before it could touch any sensitive customer data."
             )
         return "✨ All quiet on the threat radar! We haven't observed any suspicious attacks recently, and all recent requests look completely harmless."
@@ -321,30 +331,16 @@ class ChatbotRouter:
 
         # 4. Query Groq API
         try:
-            groq_api_key = os.environ.get("GROQ_API_KEY", "")
-            if not groq_api_key:
-                for env_file in [".env", "../.env", "/app/.env"]:
-                    if os.path.exists(env_file):
-                        try:
-                            with open(env_file, "r") as ef:
-                                for line in ef:
-                                    if line.startswith("GROQ_API_KEY="):
-                                        groq_api_key = line.strip().split("=", 1)[1].strip("'\" ")
-                                        break
-                        except Exception:
-                            pass
-                    if groq_api_key:
-                        break
-
-            if not groq_api_key:
+            if not settings.groq_api_key:
                 return self._simulate_llm_response(msg, data)
 
-            async with httpx.AsyncClient() as client:
+            groq_api_key = settings.groq_api_key
+            async with httpx.AsyncClient(timeout=settings.groq_timeout) as client:
                 res = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
+                    settings.groq_api_url,
                     headers={"Authorization": f"Bearer {groq_api_key}"},
                     json={
-                        "model": "openai/gpt-oss-120b",
+                        "model": settings.groq_model,
                         "messages": [
                             {"role": "system", "content": augmented_system_prompt},
                             {"role": "user", "content": msg}
@@ -352,7 +348,6 @@ class ChatbotRouter:
                         "temperature": 0.2,
                         "max_tokens": 150
                     },
-                    timeout=20.0
                 )
                 
             if res.status_code == 200:

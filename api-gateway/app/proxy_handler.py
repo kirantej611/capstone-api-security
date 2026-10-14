@@ -12,6 +12,7 @@ This is the central request processing pipeline:
   8. Record metrics for the dashboard
 """
 
+import ipaddress
 import json
 import time
 import uuid
@@ -85,8 +86,8 @@ def _redact_sensitive_values(value):
 def _dashboard_request_body(body: str) -> str:
     try:
         body = json.dumps(_redact_sensitive_values(json.loads(body)), ensure_ascii=False)
-    except (json.JSONDecodeError, TypeError):
-        pass
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return "[REDACTED: unparseable request body]"
     if len(body) > MAX_DASHBOARD_BODY_LENGTH:
         return body[:MAX_DASHBOARD_BODY_LENGTH] + "\n[TRUNCATED]"
     return body
@@ -94,13 +95,35 @@ def _dashboard_request_body(body: str) -> str:
 
 def _get_client_ip(request: Request) -> str:
     """
-    Extract the real client IP, honoring X-Forwarded-For if present.
-    Falls back to the direct connection IP.
+    Honor X-Forwarded-For only when the direct peer is a trusted proxy.
     """
+    direct_peer = request.client.host if request.client else "unknown"
+    try:
+        peer_ip = ipaddress.ip_address(direct_peer)
+    except ValueError:
+        return direct_peer
+
+    trusted_proxy = False
+    for configured_proxy in settings.trusted_proxy_ips.split(","):
+        configured_proxy = configured_proxy.strip()
+        if not configured_proxy:
+            continue
+        try:
+            if peer_ip in ipaddress.ip_network(configured_proxy, strict=False):
+                trusted_proxy = True
+                break
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid TRUSTED_PROXY_IPS entry: {configured_proxy}"
+            ) from exc
+
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    if trusted_proxy and forwarded:
+        try:
+            return str(ipaddress.ip_address(forwarded.split(",")[0].strip()))
+        except ValueError:
+            logger.warning("invalid_forwarded_client_ip", forwarded_for=forwarded)
+    return str(peer_ip)
 
 
 def _should_block_by_risk(risk_level_str: str) -> bool:

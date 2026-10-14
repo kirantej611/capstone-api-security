@@ -24,7 +24,7 @@ export default function Chatbot() {
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const toggleChat = () => setIsOpen(!isOpen);
+  const toggleChat = () => setIsOpen((open) => !open);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -59,12 +59,36 @@ export default function Chatbot() {
         body: JSON.stringify({ message: text })
       });
       
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: { reply?: unknown; detail?: unknown } = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        const diagnostic = responseText.trim().slice(0, 300);
+        throw new Error(
+          response.ok
+            ? 'Gateway returned an invalid response body.'
+            : `Gateway returned HTTP ${response.status}${diagnostic ? `: ${diagnostic}` : ''}.`
+        );
+      }
+
+      if (!response.ok) {
+        const detail =
+          typeof data.detail === 'string'
+            ? `: ${data.detail}`
+            : response.statusText
+              ? `: ${response.statusText}`
+              : '';
+        throw new Error(`Gateway returned HTTP ${response.status}${detail}`);
+      }
+      if (typeof data.reply !== 'string' || !data.reply.trim()) {
+        throw new Error('Gateway response did not include a reply.');
+      }
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.reply || 'No response received from the backend.',
+        content: data.reply,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -72,7 +96,9 @@ export default function Chatbot() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Error connecting to the SecOps backend API. Ensure the gateway is running.',
+        content: error instanceof Error
+          ? `Could not get a SecOps response. ${error.message}`
+          : 'Could not get a SecOps response due to an unknown error.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -113,6 +139,7 @@ export default function Chatbot() {
             </div>
             <button 
               onClick={toggleChat}
+              aria-label="Close SecOps Assistant"
               style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}
             >
               <X size={20} />
@@ -260,6 +287,7 @@ export default function Chatbot() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask the LLM anything..."
+                  aria-label="Message for the SecOps Assistant"
                   style={{
                     flex: 1,
                     padding: '10px 14px',
@@ -275,6 +303,7 @@ export default function Chatbot() {
                 <button
                   type="submit"
                   disabled={!input.trim()}
+                  aria-label="Send message"
                   style={{
                     backgroundColor: input.trim() ? '#00ff9d' : '#333',
                     color: input.trim() ? '#000' : '#888',
@@ -299,6 +328,7 @@ export default function Chatbot() {
       {/* Floating Button */}
       <button
         onClick={toggleChat}
+        aria-label={isOpen ? 'Close SecOps Assistant' : 'Open SecOps Assistant'}
         style={{
           width: '56px',
           height: '56px',

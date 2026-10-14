@@ -27,6 +27,25 @@ class NoRedirectHandler(HTTPRedirectHandler):
 
 
 UPSTREAM_OPENER = build_opener(NoRedirectHandler())
+MAX_REQUEST_BYTES = 1_048_576
+MAX_RESPONSE_BYTES = 16_777_216
+RESPONSE_READ_CHUNK_BYTES = 65_536
+
+
+class UpstreamResponseTooLarge(Exception):
+    pass
+
+
+def _read_bounded_response(response, max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
+    body = bytearray()
+    while True:
+        remaining = max_bytes - len(body)
+        chunk = response.read(min(RESPONSE_READ_CHUNK_BYTES, remaining + 1))
+        if not chunk:
+            return bytes(body)
+        if len(chunk) > remaining:
+            raise UpstreamResponseTooLarge
+        body.extend(chunk)
 
 
 def _client_ip(address: str) -> str:
@@ -92,6 +111,10 @@ class GatewayRelayHandler(BaseHTTPRequestHandler):
             if content_length < 0:
                 self.send_error(400, "Invalid Content-Length")
                 return
+            if content_length > MAX_REQUEST_BYTES:
+                self.close_connection = True
+                self.send_error(413, "Request body too large")
+                return
 
             body = self.rfile.read(content_length) if content_length else None
             request = Request(
@@ -115,7 +138,16 @@ class GatewayRelayHandler(BaseHTTPRequestHandler):
                 return
 
             with upstream_response:
-                response_body = upstream_response.read()
+                try:
+                    response_body = (
+                        b""
+                        if self.command == "HEAD"
+                        else _read_bounded_response(upstream_response)
+                    )
+                except UpstreamResponseTooLarge:
+                    self.close_connection = True
+                    self.send_error(502, "Upstream response too large")
+                    return
                 self.send_response(upstream_response.status)
                 for name, value in upstream_response.headers.items():
                     if name.lower() not in HOP_BY_HOP_HEADERS | {"content-length"}:
@@ -145,15 +177,17 @@ def main():
     )
     parser.add_argument(
         "--listen-host",
-        required=True,
-        help="This computer's LAN interface address, e.g. 10.214.252.246",
+        default="0.0.0.0",
+        help="Host interface to listen on (default: all interfaces)",
     )
     parser.add_argument("--listen-port", type=int, default=8080)
     parser.add_argument("--upstream", default="http://127.0.0.1:8085")
     args = parser.parse_args()
 
     GatewayRelayHandler.upstream = args.upstream
-    server = ThreadingHTTPServer((args.listen_host, args.listen_port), GatewayRelayHandler)
+    server = ThreadingHTTPServer(
+        (args.listen_host, args.listen_port), GatewayRelayHandler
+    )
     server.daemon_threads = True
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.info(

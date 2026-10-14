@@ -1,15 +1,6 @@
 import { ATTACK_SCENARIOS } from './xaiUtils';
 import { AttackScenario } from './types';
-
-const isServer = typeof window === 'undefined';
-
-export const GATEWAY_URL = isServer 
-  ? process.env.INTERNAL_GATEWAY_URL || 'http://api-gateway:8080'
-  : '/api/proxy/gateway-root';
-
-export const VICTIM_URL = isServer
-  ? process.env.INTERNAL_VICTIM_URL || 'http://victim-ecommerce:8081'
-  : '/api/proxy/victim-root';
+import { getGatewayUrl, getVictimUrl } from './serviceUrls';
 
 export const DEMO_SCENARIOS: AttackScenario[] = ATTACK_SCENARIOS;
 
@@ -31,7 +22,6 @@ export interface DemoAttempt {
 }
 
 function isLoopbackHost(url: string): boolean {
-  if (url.startsWith('/')) return true; // Relative proxy URL is safe
   try {
     const parsed = new URL(url);
     return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
@@ -56,7 +46,7 @@ export async function executeDemoRequest(
 ): Promise<DemoAttempt> {
   assertAllowedEndpoint(scenario.targetEndpoint);
 
-  const base = route === 'protected' ? GATEWAY_URL : VICTIM_URL;
+  const base = route === 'protected' ? getGatewayUrl() : getVictimUrl();
   const label =
     route === 'protected'
       ? 'Protected (through shield)'

@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY requirements.txt constraints.txt ./
 
 # Keep wheel dependencies on PyPI; the PyTorch index has returned mismatched
 # hashes for transitive packages such as mpmath.
@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir --default-timeout=1000 --retries 10 \
         --no-deps torch==2.14.1+cpu && \
     pip install --no-cache-dir --default-timeout=1000 --retries 10 \
         --index-url https://pypi.org/simple \
+        -c constraints.txt \
         -r requirements.txt
 
 COPY api/ ./api/

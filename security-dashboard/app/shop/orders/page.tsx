@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Order, ShopApiError, getShopUser, listOrders } from '../../../lib/shopApi';
+import { formatInr } from '../../../lib/formatters';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -38,7 +39,7 @@ export default function OrdersPage() {
           <article key={order.id} className="review-item">
             <strong>Order #{order.id}</strong>
             <p>
-              {order.status} · ${order.total.toFixed(2)}
+              {order.status} · {formatInr(order.total)}
             </p>
             <Link href={`/shop/orders/${order.id}`}>View order</Link>
           </article>

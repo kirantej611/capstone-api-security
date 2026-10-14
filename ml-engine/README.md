@@ -69,10 +69,11 @@ uvicorn api.main:app --host 0.0.0.0 --port 8001
 ## Docker Runtime
 
 The inference image installs the pinned CPU-only PyTorch wheel from the PyTorch
-index and resolves its supporting packages from PyPI. Scikit-learn is pinned to
-1.7.2 to match the serialized scaler artifacts. Compose marks the ML service
-healthy only after the v2 model artifacts load and report 42 features and six
-classes; the API gateway waits for that health check before starting.
+index and resolves its supporting packages from PyPI using the versions in
+`constraints.txt`. Scikit-learn is pinned to 1.7.2 to match the serialized
+scaler artifacts. Compose marks the ML service healthy only after the v2 model
+artifacts load and report 42 features and six classes; the API gateway waits
+for that health check before starting.
 
 ## Key Improvements (v1 → v2)
 

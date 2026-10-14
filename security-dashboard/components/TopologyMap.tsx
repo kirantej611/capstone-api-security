@@ -8,6 +8,7 @@ export default function TopologyMap({ verdicts }: { verdicts?: RecentVerdict[] }
   const [activeNode, setActiveNode] = useState<string>('gateway');
   const [isAttacking, setIsAttacking] = useState(false);
   const [threatDetected, setThreatDetected] = useState(false);
+  const [threatVerdict, setThreatVerdict] = useState<RecentVerdict | null>(null);
 
   const latestVerdict = verdicts && verdicts.length > 0 ? verdicts[0] : null;
   const latestRequestId = latestVerdict?.request_id;
@@ -19,17 +20,24 @@ export default function TopologyMap({ verdicts }: { verdicts?: RecentVerdict[] }
     setIsAttacking(true);
     if (latestVerdict.action === 'BLOCK' || latestVerdict.action === 'RATE_LIMIT') {
       setThreatDetected(true);
-    } else {
-      setThreatDetected(false);
+      setThreatVerdict(latestVerdict);
     }
     
     const timer = setTimeout(() => {
       setIsAttacking(false);
-      setThreatDetected(false);
     }, 20000); // 20 seconds! Stays on screen for presentation
     
     return () => clearTimeout(timer);
   }, [latestRequestId]); // ONLY re-run when the ID actually changes
+
+  useEffect(() => {
+    if (!threatVerdict) return;
+    const timer = setTimeout(() => {
+      setThreatDetected(false);
+      setThreatVerdict(null);
+    }, 20000);
+    return () => clearTimeout(timer);
+  }, [threatVerdict?.request_id]);
 
   const nodes = [
     { id: 'clients', label: 'External Web', icon: Radio, x: 20, y: 185, color: '#00ff41' },
@@ -283,7 +291,7 @@ export default function TopologyMap({ verdicts }: { verdicts?: RecentVerdict[] }
       </div>
       
       {/* HUD Forensic Info Box */}
-      {isAttacking && threatDetected && verdicts && (
+      {isAttacking && threatDetected && threatVerdict && (
         <div style={{ 
           position: 'absolute', 
           bottom: '2rem', 
@@ -301,10 +309,10 @@ export default function TopologyMap({ verdicts }: { verdicts?: RecentVerdict[] }
         }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#fff', fontSize: '0.9rem' }}>&gt; FORENSIC_REPORT</h4>
           <div style={{ color: alertRed, fontSize: '0.8rem', lineHeight: '1.5' }}>
-            <span style={{color: '#888'}}>IP:</span> {verdicts[0].client_ip}<br/>
-            <span style={{color: '#888'}}>THREAT:</span> <span style={{fontWeight: 'bold', color: '#fff'}}>{verdicts[0].threat_type}</span><br/>
-            <span style={{color: '#888'}}>SCORE:</span> {(verdicts[0].anomaly_score ?? 0) > 0 ? (verdicts[0].anomaly_score!.toFixed(2)) : 'HIGH'}<br/>
-            <span style={{color: '#888'}}>ACTION:</span> QUARANTINE IMPOSED<br/>
+            <span style={{color: '#888'}}>IP:</span> {threatVerdict.client_ip}<br/>
+            <span style={{color: '#888'}}>THREAT:</span> <span style={{fontWeight: 'bold', color: '#fff'}}>{threatVerdict.threat_type}</span><br/>
+            <span style={{color: '#888'}}>SCORE:</span> {threatVerdict.anomaly_score == null ? '—' : threatVerdict.anomaly_score.toFixed(2)}<br/>
+            <span style={{color: '#888'}}>ACTION:</span> {threatVerdict.action}<br/>
             <span style={{color: '#888'}}>TARGET:</span> SECURED
           </div>
         </div>

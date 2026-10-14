@@ -39,12 +39,12 @@ Every request flows through this pipeline:
 6. **Kafka Publishing** — Publish request metadata + verdict for async processing
 7. **Reverse Proxy** — Forward allowed requests to the upstream e-commerce backend
 
-The dashboard's recent-verdict feed includes model probabilities, feature
-importance, request context, and latency fields when available. Request bodies
-are kept only in the in-memory recent-verdict buffer (up to 100 entries), capped
-at 16 KiB per entry, with common credential fields redacted. Authorization,
-cookie, and proxy-authorization headers are excluded. Requests rejected before
-ML analysis correctly show that model attribution is unavailable.
+The dashboard's unauthenticated recent-verdict feed exposes model probabilities,
+feature importance, and latency fields when available. Request headers, bodies,
+and query parameters are excluded from that public response. Request context is
+retained only in the in-memory recent-verdict buffer (up to 100 entries); bodies
+are capped at 16 KiB and common credential fields are redacted. Requests rejected
+before ML analysis correctly show that model attribution is unavailable.
 
 ## Tech Stack
 
@@ -137,20 +137,28 @@ Docker Desktop can NAT LAN requests so every client appears to the gateway as th
 same Docker bridge IP. For a multi-device demo, publish the gateway on host
 loopback only, then run the host-side relay from the repository root. The relay
 uses the connected socket's peer IP and overwrites forwarded-IP headers supplied
-by clients.
+by clients. It listens on all host interfaces by default, so it does not need a
+hardcoded Wi-Fi address.
+
+The gateway honors `X-Forwarded-For` only when the direct connection comes from
+an address listed in `TRUSTED_PROXY_IPS`. Compose defaults this to its expected
+Docker Desktop bridge gateway (`172.18.0.1/32`); override it in the environment
+if your Docker bridge uses a different gateway address. Without a trusted peer,
+the gateway uses the direct connection address and ignores forwarded headers.
 
 ```powershell
 docker compose up -d api-gateway
-python .\api-gateway\lan_proxy.py --listen-host 10.214.252.246
+python .\api-gateway\lan_proxy.py
 ```
 
-Replace `10.214.252.246` with the current Wi-Fi IPv4 address shown by `ipconfig`.
-Configure the dashboard's `NEXT_PUBLIC_GATEWAY_URL` build value to
-`http://<wifi-ip>:8080` and rebuild the dashboard if the address changes.
-Participants then open `http://<wifi-ip>:3000`; their API requests go through
-the relay on port 8080. Keep the Docker gateway mapping on `127.0.0.1:8085` so
-LAN clients cannot bypass the relay. Allow inbound TCP ports 3000 and 8080 on
-the Windows private-network firewall if prompted. Stop the relay with Ctrl+C.
+Open `http://localhost:3000` on the host or `http://<current-wifi-ip>:3000` on
+another device. The dashboard derives the gateway URL from the hostname used to
+open it, so localhost users call `localhost:8080` and LAN users call
+`<current-wifi-ip>:8080`; no dashboard rebuild is required when DHCP changes the
+host address. Keep the Docker gateway mapping on `127.0.0.1:8085` so LAN clients
+cannot bypass the relay. Allow inbound TCP ports 3000 and 8080 on the Windows
+private-network firewall if prompted. The host relay must remain running; stop
+it with Ctrl+C.
 
 ## API Endpoints
 
@@ -186,6 +194,11 @@ All other routes (`/*`) are intercepted, analyzed, and proxied to the upstream e
 | `BURST_LIMIT_MAX_REQUESTS` | `30` | Max requests per IP in the burst window; crossing it adds the IP to the temporary blocklist |
 | `CREDENTIAL_FAILURE_WINDOW` | `60` | Failed-login counting window (seconds) |
 | `CREDENTIAL_FAILURE_THRESHOLD` | `5` | Failed logins per IP before flagging credential stuffing |
+| `TRUSTED_PROXY_IPS` | `172.18.0.1/32` in Compose | Trusted proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
+| `GROQ_API_KEY` | empty | Optional SecOps assistant API key |
+| `GROQ_API_URL` | Groq chat-completions endpoint | SecOps assistant endpoint |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | SecOps assistant model |
+| `GROQ_TIMEOUT` | `20.0` | SecOps assistant timeout (seconds) |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka brokers |
 | `KAFKA_TOPIC_REQUESTS` | `api.requests.raw` | Raw request metadata topic |
 | `KAFKA_TOPIC_VERDICTS` | `api.verdicts` | Gateway verdict topic |

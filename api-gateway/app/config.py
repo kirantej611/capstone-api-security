@@ -69,6 +69,25 @@ class Settings(BaseSettings):
         default=5,
         description="Failed logins from one IP needed to flag credential stuffing",
     )
+    trusted_proxy_ips: str = Field(
+        default="",
+        description="Comma-separated trusted proxy IP addresses or CIDRs for X-Forwarded-For",
+    )
+
+    # ── SecOps Assistant ──
+    groq_api_key: str = Field(default="", description="API key for the SecOps assistant")
+    groq_api_url: str = Field(
+        default="https://api.groq.com/openai/v1/chat/completions",
+        description="Chat-completions endpoint for the SecOps assistant",
+    )
+    groq_model: str = Field(
+        default="openai/gpt-oss-120b",
+        description="Model used by the SecOps assistant",
+    )
+    groq_timeout: float = Field(
+        default=20.0,
+        description="Timeout in seconds for SecOps assistant requests",
+    )
 
     # ── Kafka ──
     kafka_bootstrap_servers: str = Field(

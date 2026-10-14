@@ -147,6 +147,26 @@ class RecentVerdict(BaseModel):
     total_latency_ms: Optional[float] = None
 
 
+class RecentVerdictResponse(BaseModel):
+    """Public recent-verdict fields safe to expose to dashboard clients."""
+    request_id: str
+    timestamp: str
+    client_ip: str
+    method: str
+    path: str
+    action: GatewayAction
+    threat_type: Optional[str] = None
+    risk_level: Optional[str] = None
+    anomaly_score: Optional[float] = None
+    is_anomalous: Optional[bool] = None
+    block_reason: Optional[BlockReason] = None
+    threat_confidence: Optional[float] = None
+    all_probabilities: Optional[Dict[str, float]] = None
+    feature_importance: Optional[Dict[str, float]] = None
+    ml_latency_ms: Optional[float] = None
+    total_latency_ms: Optional[float] = None
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
     status: str = "healthy"
