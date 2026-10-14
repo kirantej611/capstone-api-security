@@ -81,7 +81,7 @@ export default function DemoPage() {
           If a service is offline, you will see a connection error — never a fabricated success or block.
         </p>
         <div className="shop-alert error" style={{ background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' }}>
-          Direct victim access is an opt-in local demo path only (127.0.0.1:8081). Do not expose it on public interfaces.
+          Direct victim access is an opt-in demo path to 127.0.0.1:8081 on the device opening this page. From another device, use the protected route; do not expose the victim service on LAN or public interfaces.
         </div>
 
         <label style={{ display: 'block', margin: '1rem 0 0.5rem' }}>Scenario</label>

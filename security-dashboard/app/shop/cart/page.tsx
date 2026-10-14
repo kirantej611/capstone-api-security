@@ -9,6 +9,7 @@ import {
   getShopUser,
   removeCartItem,
 } from '../../../lib/shopApi';
+import { formatInr } from '../../../lib/formatters';
 
 export default function CartPage() {
   const [cart, setCart] = useState<CartResponse | null>(null);
@@ -72,7 +73,7 @@ export default function CartPage() {
                 <tr key={item.item_id}>
                   <td>{item.name}</td>
                   <td>{item.qty}</td>
-                  <td>${item.line_total.toFixed(2)}</td>
+                  <td>{formatInr(item.line_total)}</td>
                   <td>
                     <button className="shop-btn-secondary" type="button" onClick={() => removeItem(item.item_id)}>
                       Remove
@@ -83,7 +84,7 @@ export default function CartPage() {
             </tbody>
           </table>
           <p style={{ margin: '1rem 0' }}>
-            <strong>Total: ${cart.total.toFixed(2)}</strong>
+            <strong>Total: {formatInr(cart.total)}</strong>
           </p>
           <Link className="shop-btn" href="/shop/checkout" style={{ display: 'inline-block', textDecoration: 'none' }}>
             Checkout

@@ -41,7 +41,7 @@ export default function CheckoutPage() {
           rows={4}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder="Shipping address"
+          placeholder="House/flat, street, locality, city, state, PIN code"
           required
         />
         <button className="shop-btn" type="submit" disabled={pending}>

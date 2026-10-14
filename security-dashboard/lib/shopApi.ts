@@ -1,4 +1,4 @@
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:8080';
+import { getGatewayUrl } from './serviceUrls';
 
 const TOKEN_KEY = 'aurora.shop.token';
 const USER_KEY = 'aurora.shop.user';
@@ -132,7 +132,7 @@ export async function shopRequest<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${GATEWAY_URL}${path}`, {
+    response = await fetch(`${getGatewayUrl()}${path}`, {
       ...init,
       headers,
       cache: 'no-store',

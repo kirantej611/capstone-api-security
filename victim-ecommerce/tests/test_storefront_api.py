@@ -122,7 +122,8 @@ class TestCartAndCheckout:
         body = cart.json()
         assert body["user_id"] == 2
         assert body["items"][0]["qty"] == 2
-        assert body["total"] == 2599.98
+        assert body["items"][0]["unit_price"] == 108549.17
+        assert body["total"] == 217098.34
         removed = client.delete("/api/cart/items/1", headers=auth_header())
         assert removed.status_code == 200
         empty = client.get("/api/cart", headers=auth_header())
@@ -143,7 +144,7 @@ class TestCartAndCheckout:
         client.post("/api/cart/add", json={"item_id": 1, "qty": 1}, headers=auth_header())
         resp = client.post(
             "/api/checkout",
-            json={"shipping_address": "12 Market Road"},
+            json={"shipping_address": "12 Residency Road, Bengaluru, Karnataka 560025"},
             headers=auth_header(),
         )
         assert resp.status_code == 201
@@ -162,7 +163,7 @@ class TestCartAndCheckout:
         store.fail_next_order_item = True
         resp = client.post(
             "/api/checkout",
-            json={"shipping_address": "12 Market Road"},
+            json={"shipping_address": "12 Residency Road, Bengaluru, Karnataka 560025"},
             headers=auth_header(),
         )
         assert resp.status_code == 500

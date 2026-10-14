@@ -12,6 +12,7 @@ import {
   getReviews,
   getShopUser,
 } from '../../../../lib/shopApi';
+import { formatInr, formatIstTimestamp } from '../../../../lib/formatters';
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
@@ -99,7 +100,7 @@ export default function ProductDetailPage() {
     <div>
       <h1>{product.name}</h1>
       <p style={{ color: '#52606d', margin: '0.5rem 0 1rem' }}>{product.description}</p>
-      <p className="shop-price">${product.price.toFixed(2)}</p>
+      <p className="shop-price">{formatInr(product.price)}</p>
       <p style={{ margin: '0.5rem 0 1rem' }}>
         Category: {product.category || 'uncategorized'} · Stock: {product.stock}
       </p>
@@ -153,7 +154,7 @@ export default function ProductDetailPage() {
               {review.rating}/5 · user {review.user_id}
             </strong>
             <p>{review.comment}</p>
-            <small>{review.created_at}</small>
+            <small>{formatIstTimestamp(review.created_at)}</small>
           </article>
         ))}
       </div>

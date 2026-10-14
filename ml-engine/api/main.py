@@ -26,6 +26,11 @@ from models.autoencoder import VariationalAutoencoder
 from models.classifier import DeepResidualClassifier
 from models.ensemble import EnsembleDecisionEngine, TemperatureScaling
 from utils.feature_extraction import extract_features as _extract_features, FEATURE_NAMES, NUM_FEATURES
+from utils.inference_policy import (
+    detect_attack_indicators,
+    has_novel_attack_indicators,
+    normalize_request_for_inference,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,7 +93,6 @@ class ModelState:
         self.scaler = None
         self.ensemble: Optional[EnsembleDecisionEngine] = None
         self.global_threshold = 0.0
-        self.per_class_thresholds = {}
         self.label_mapping = {}
         self.temperature = 1.0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -108,9 +112,6 @@ class ModelState:
             with open('saved_models/anomaly_threshold.json', 'r') as f:
                 threshold_data = json.load(f)
                 self.global_threshold = threshold_data['threshold']
-                self.per_class_thresholds = {
-                    int(k): v for k, v in threshold_data.get('per_class_thresholds', {}).items()
-                }
             logger.info(f"Global threshold: {self.global_threshold:.6f}")
 
             # ── Load Label Mapping ───────────────────────────
@@ -172,7 +173,6 @@ class ModelState:
             # ── Setup Ensemble Engine ────────────────────────
             calibrator = TemperatureScaling(temperature=self.temperature)
             self.ensemble = EnsembleDecisionEngine(
-                per_class_thresholds=self.per_class_thresholds,
                 global_threshold=self.global_threshold,
                 calibrator=calibrator,
             )
@@ -272,8 +272,18 @@ def compute_feature_importance(
 
 def run_prediction(req: PredictRequest) -> dict:
     """Core prediction logic, separated from endpoint for reuse in batch."""
+    model_url, model_body, model_headers = normalize_request_for_inference(
+        req.url, req.body, req.headers
+    )
+    model_req = PredictRequest(
+        url=model_url,
+        method=req.method,
+        body=model_body,
+        headers=model_headers,
+    )
+
     # 1. Feature Extraction
-    raw_features = extract_request_features(req)
+    raw_features = extract_request_features(model_req)
 
     # 2. Scaling
     scaled_features = model_state.scaler.transform(raw_features.reshape(1, -1))
@@ -296,6 +306,12 @@ def run_prediction(req: PredictRequest) -> dict:
         class_probs=probs,
         raw_logits=logits,
         label_mapping=model_state.label_mapping,
+        attack_indicators=detect_attack_indicators(
+            req.url, req.body, req.headers
+        ),
+        novelty_indicators=has_novel_attack_indicators(
+            req.url, req.method, req.body, req.headers
+        ),
     )
 
     # 7. Feature Importance (real perturbation-based XAI)

@@ -36,6 +36,7 @@ export interface RecentVerdict {
   threat_type?: ThreatType | string | null;
   risk_level?: RiskLevel | string | null;
   anomaly_score?: number | null;
+  is_anomalous?: boolean | null;
   // Extended fields for rich drilldown
   headers?: Record<string, string>;
   body?: string;
@@ -75,6 +76,7 @@ export interface HealthResponse {
 export interface BlockedIPEntry {
   ip: string;
   reason?: string;
+  ttl_seconds?: number | null;
 }
 
 export interface AttackScenario {

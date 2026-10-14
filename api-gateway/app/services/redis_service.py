@@ -24,6 +24,8 @@ class RedisService:
 
     BLOCKLIST_PREFIX = "blocklist:ip:"
     RATE_LIMIT_PREFIX = "ratelimit:ip:"
+    BURST_LIMIT_PREFIX = "burstlimit:ip:"
+    LOGIN_FAILURE_PREFIX = "loginfail:ip:"
 
     def __init__(self) -> None:
         self._client: Optional[aioredis.Redis] = None
@@ -115,19 +117,25 @@ class RedisService:
             logger.error("redis_unblock_ip_failed", ip=ip, error=str(exc))
             return False
 
-    async def get_blocked_ips(self) -> List[str]:
-        """Return all currently blocked IPs."""
+    async def get_blocklist_entries(self) -> List[dict[str, str]]:
+        """Return blocklisted IPs together with their stored block reasons."""
         if not self._client:
             return []
         try:
-            keys = []
+            entries = []
             async for key in self._client.scan_iter(f"{self.BLOCKLIST_PREFIX}*"):
-                ip = key.replace(self.BLOCKLIST_PREFIX, "")
-                keys.append(ip)
-            return keys
+                ip = key.removeprefix(self.BLOCKLIST_PREFIX)
+                reason = await self._client.get(key)
+                entries.append({"ip": ip, "reason": reason or "blocked_by_gateway"})
+            return entries
         except Exception as exc:
             logger.error("redis_list_blocked_failed", error=str(exc))
             return []
+
+    async def get_blocked_ips(self) -> List[str]:
+        """Return all currently blocked IPs."""
+        entries = await self.get_blocklist_entries()
+        return [entry["ip"] for entry in entries]
 
     async def get_blocked_ip_count(self) -> int:
         """Return count of currently blocked IPs (for dashboard stats)."""
@@ -170,6 +178,43 @@ class RedisService:
         except Exception as exc:
             logger.warning("redis_rate_limit_check_failed", ip=ip, error=str(exc))
             return True, 0  # fail-open
+
+    async def check_burst_limit(self, ip: str) -> tuple[bool, int]:
+        """Count requests in a short window to identify sudden bursts."""
+        if not self._client:
+            return True, 0
+
+        key = f"{self.BURST_LIMIT_PREFIX}{ip}"
+        try:
+            async with self._client.pipeline(transaction=True) as pipe:
+                pipe.incr(key)
+                pipe.expire(key, settings.burst_limit_window)
+                results = await pipe.execute()
+            current_count = results[0]
+            return current_count <= settings.burst_limit_max_requests, current_count
+        except Exception as exc:
+            logger.warning("redis_burst_limit_check_failed", ip=ip, error=str(exc))
+            return True, 0
+
+    async def record_login_result(self, ip: str, succeeded: bool) -> int:
+        """Track failed login responses per IP and clear the count after a success."""
+        if not self._client:
+            return 0
+
+        key = f"{self.LOGIN_FAILURE_PREFIX}{ip}"
+        try:
+            if succeeded:
+                await self._client.delete(key)
+                return 0
+
+            async with self._client.pipeline(transaction=True) as pipe:
+                pipe.incr(key)
+                pipe.expire(key, settings.credential_failure_window)
+                results = await pipe.execute()
+            return results[0]
+        except Exception as exc:
+            logger.warning("redis_login_failure_tracking_failed", ip=ip, error=str(exc))
+            return 0
 
 
 # Module-level singleton

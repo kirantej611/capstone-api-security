@@ -22,9 +22,9 @@ async def seed_data():
         await conn.executemany(
             "INSERT INTO users (username, email, password, role) VALUES ($1, $2, $3, $4)",
             [
-                ("admin", "admin@store.com", "admin", "admin"),
-                ("user1", "user1@store.com", "password123", "customer"),
-                ("user2", "user2@store.com", "password456", "customer"),
+                ("admin", "admin@aurora.in", "admin", "admin"),
+                ("user1", "user1@aurora.in", "password123", "customer"),
+                ("user2", "user2@aurora.in", "password456", "customer"),
             ]
         )
         logger.info("Seeded 3 users")
@@ -33,18 +33,18 @@ async def seed_data():
         await conn.executemany(
             "INSERT INTO products (name, description, price, category, stock) VALUES ($1, $2, $3, $4, $5)",
             [
-                ("Laptop Pro 15", "High-performance laptop with 16GB RAM", 1299.99, "electronics", 100),
-                ("Wireless Mouse", "Ergonomic wireless mouse", 29.99, "electronics", 100),
-                ("USB-C Hub", "7-in-1 USB-C hub adapter", 49.99, "electronics", 100),
-                ("Mechanical Keyboard", "RGB mechanical gaming keyboard", 89.99, "electronics", 100),
-                ("Classic T-Shirt", "100% cotton premium t-shirt", 24.99, "clothing", 100),
-                ("Denim Jacket", "Vintage style denim jacket", 79.99, "clothing", 100),
-                ("Running Shoes", "Lightweight running shoes", 119.99, "clothing", 100),
-                ("Python Crash Course", "Learn Python programming", 39.99, "books", 100),
-                ("Clean Code", "A handbook of agile software craftsmanship", 34.99, "books", 100),
-                ("The Art of War", "Sun Tzu classic strategy", 12.99, "books", 100),
-                ("Coffee Maker", "Programmable 12-cup coffee maker", 69.99, "home", 100),
-                ("Desk Lamp", "LED desk lamp with USB charging", 44.99, "home", 100),
+                ("Laptop Pro 15", "High-performance laptop with 16GB RAM", 108549.17, "electronics", 100),
+                ("Wireless Mouse", "Ergonomic wireless mouse", 2504.17, "electronics", 100),
+                ("USB-C Hub", "7-in-1 USB-C hub adapter", 4174.17, "electronics", 100),
+                ("Mechanical Keyboard", "RGB mechanical gaming keyboard", 7514.17, "electronics", 100),
+                ("Classic T-Shirt", "100% cotton premium t-shirt", 2086.67, "clothing", 100),
+                ("Denim Jacket", "Vintage style denim jacket", 6679.17, "clothing", 100),
+                ("Running Shoes", "Lightweight running shoes", 10019.17, "clothing", 100),
+                ("Python Crash Course", "Learn Python programming", 3339.17, "books", 100),
+                ("Clean Code", "A handbook of agile software craftsmanship", 2921.67, "books", 100),
+                ("The Art of War", "Sun Tzu classic strategy", 1084.67, "books", 100),
+                ("Coffee Maker", "Programmable 12-cup coffee maker", 5844.17, "home", 100),
+                ("Desk Lamp", "LED desk lamp with USB charging", 3756.67, "home", 100),
             ]
         )
         logger.info("Seeded 12 products")
@@ -66,8 +66,8 @@ async def seed_data():
         await conn.executemany(
             "INSERT INTO orders (user_id, total, status, shipping_address) VALUES ($1, $2, $3, $4)",
             [
-                (2, 1329.98, "delivered", "123 Main St, City"),
-                (3, 114.98, "shipped", "456 Oak Ave, Town"),
+                (2, 111053.34, "delivered", "12 Residency Road, Bengaluru, Karnataka 560025"),
+                (3, 9600.84, "shipped", "44 FC Road, Pune, Maharashtra 411004"),
             ]
         )
         logger.info("Seeded 2 orders")
@@ -76,10 +76,10 @@ async def seed_data():
         await conn.executemany(
             "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)",
             [
-                (1, 1, 1, 1299.99),
-                (1, 2, 1, 29.99),
-                (2, 6, 1, 79.99),
-                (2, 9, 1, 34.99),
+                (1, 1, 1, 108549.17),
+                (1, 2, 1, 2504.17),
+                (2, 6, 1, 6679.17),
+                (2, 9, 1, 2921.67),
             ]
         )
         logger.info("Seeded 4 order items")

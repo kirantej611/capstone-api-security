@@ -12,6 +12,7 @@ This is the central request processing pipeline:
   8. Record metrics for the dashboard
 """
 
+import json
 import time
 import uuid
 from datetime import datetime, timezone
@@ -45,6 +46,50 @@ RISK_ORDER = {
     RiskLevel.HIGH: 2,
     RiskLevel.CRITICAL: 3,
 }
+
+SENSITIVE_FIELD_NAMES = {
+    "password",
+    "passwd",
+    "token",
+    "access_token",
+    "refresh_token",
+    "secret",
+    "api_key",
+    "authorization",
+}
+SENSITIVE_HEADER_NAMES = {
+    "authorization",
+    "cookie",
+    "proxy-authorization",
+    "set-cookie",
+}
+MAX_DASHBOARD_BODY_LENGTH = 16_384
+
+
+def _redact_sensitive_values(value):
+    """Mask common credentials before request content is included in dashboard verdicts."""
+    if isinstance(value, dict):
+        return {
+            key: (
+                "[REDACTED]"
+                if key.lower() in SENSITIVE_FIELD_NAMES
+                else _redact_sensitive_values(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_sensitive_values(item) for item in value]
+    return value
+
+
+def _dashboard_request_body(body: str) -> str:
+    try:
+        body = json.dumps(_redact_sensitive_values(json.loads(body)), ensure_ascii=False)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    if len(body) > MAX_DASHBOARD_BODY_LENGTH:
+        return body[:MAX_DASHBOARD_BODY_LENGTH] + "\n[TRUNCATED]"
+    return body
 
 
 def _get_client_ip(request: Request) -> str:
@@ -101,6 +146,10 @@ def _build_verdict(
     prediction: Optional[MLPredictResponse],
     ml_latency_ms: float,
     total_latency_ms: float,
+    threat_type_override: Optional[str] = None,
+    risk_level_override: Optional[str] = None,
+    is_anomalous_override: Optional[bool] = None,
+    request_metadata: Optional[RequestMetadata] = None,
 ) -> GatewayVerdict:
     """Build a GatewayVerdict event."""
     verdict = GatewayVerdict(
@@ -121,6 +170,28 @@ def _build_verdict(
         verdict.threat_confidence = prediction.threat_confidence
         verdict.risk_level = prediction.risk_level
         verdict.feature_importance = prediction.feature_importance
+        verdict.all_probabilities = prediction.all_probabilities
+    if threat_type_override is not None:
+        verdict.threat_type = threat_type_override
+    if risk_level_override is not None:
+        verdict.risk_level = risk_level_override
+    if is_anomalous_override is not None:
+        verdict.is_anomalous = is_anomalous_override
+    if request_metadata is not None:
+        verdict.headers = {
+            key: value
+            for key, value in request_metadata.headers.items()
+            if key.lower() not in SENSITIVE_HEADER_NAMES
+        }
+        verdict.body = _dashboard_request_body(request_metadata.body)
+        verdict.query_params = {
+            key: (
+                "[REDACTED]"
+                if key.lower() in SENSITIVE_FIELD_NAMES
+                else value
+            )
+            for key, value in request_metadata.query_params.items()
+        }
     return verdict
 
 
@@ -186,6 +257,7 @@ async def handle_request(request: Request) -> Response:
             request_id, client_ip, request.method, request.url.path,
             GatewayAction.BLOCK, BlockReason.IP_BLOCKLISTED,
             None, 0.0, (time.perf_counter() - start_time) * 1000,
+            request_metadata=metadata,
         )
         await _publish_and_record(verdict)
         return _make_block_response(
@@ -210,6 +282,7 @@ async def handle_request(request: Request) -> Response:
             request_id, client_ip, request.method, request.url.path,
             GatewayAction.RATE_LIMIT, BlockReason.RATE_LIMIT_EXCEEDED,
             None, 0.0, (time.perf_counter() - start_time) * 1000,
+            request_metadata=metadata,
         )
         await _publish_and_record(verdict)
         return _make_block_response(
@@ -217,6 +290,39 @@ async def handle_request(request: Request) -> Response:
             f"Too many requests. Limit: {settings.rate_limit_max_requests} per {settings.rate_limit_window}s.",
             status_code=429,
         )
+
+    # Short-window detection catches bursts well below the broad per-minute cap.
+    is_burst_allowed, burst_count = await redis_service.check_burst_limit(client_ip)
+    if not is_burst_allowed:
+        logger.warning(
+            "request_burst_limited",
+            request_id=request_id,
+            ip=client_ip,
+            count=burst_count,
+        )
+        await redis_service.block_ip(
+            client_ip,
+            reason="anomaly_burst",
+        )
+        verdict = _build_verdict(
+            request_id, client_ip, request.method, request.url.path,
+            GatewayAction.RATE_LIMIT, BlockReason.RATE_LIMIT_EXCEEDED,
+            None, 0.0, (time.perf_counter() - start_time) * 1000,
+            threat_type_override="AnomalyBurst",
+            risk_level_override="HIGH",
+            is_anomalous_override=True,
+            request_metadata=metadata,
+        )
+        await _publish_and_record(verdict)
+        response = _make_block_response(
+            request_id, "anomaly_burst",
+            f"Too many requests. Limit: {settings.burst_limit_max_requests} "
+            f"per {settings.burst_limit_window}s.",
+            status_code=429,
+        )
+        response.headers["x-gateway-action"] = GatewayAction.RATE_LIMIT.value
+        response.headers["x-gateway-threat-type"] = "AnomalyBurst"
+        return response
 
     # ── Step 5: ML Engine threat prediction ──
     prediction: Optional[MLPredictResponse] = None
@@ -269,16 +375,15 @@ async def handle_request(request: Request) -> Response:
                 risk_level=prediction.risk_level,
             )
 
-    # ── Step 7: Build and publish verdict ──
-    total_latency_ms = (time.perf_counter() - start_time) * 1000
-    verdict = _build_verdict(
-        request_id, client_ip, request.method, request.url.path,
-        action, block_reason, prediction, ml_latency_ms, total_latency_ms,
-    )
-    await _publish_and_record(verdict)
-
-    # ── Step 8: Return response ──
+    # ── Step 7: Return ML-blocked requests before proxying ──
     if action == GatewayAction.BLOCK:
+        verdict = _build_verdict(
+            request_id, client_ip, request.method, request.url.path,
+            action, block_reason, prediction, ml_latency_ms,
+            (time.perf_counter() - start_time) * 1000,
+            request_metadata=metadata,
+        )
+        await _publish_and_record(verdict)
         detail = "Threat detected and blocked."
         if prediction:
             detail = (
@@ -288,8 +393,41 @@ async def handle_request(request: Request) -> Response:
             )
         return _make_block_response(request_id, "threat_detected", detail)
 
-    # ── Step 9: Forward to upstream (reverse proxy) ──
+    # ── Step 8: Forward to upstream and incorporate temporal auth signals ──
     upstream_response = await _forward_to_upstream(request, body_bytes, request_id)
+    threat_type_override = None
+    risk_level_override = None
+    is_anomalous_override = None
+    if request.method.upper() == "POST" and request.url.path.rstrip("/") == "/api/login":
+        if upstream_response.status_code == 401:
+            failed_attempts = await redis_service.record_login_result(client_ip, succeeded=False)
+            if failed_attempts >= settings.credential_failure_threshold:
+                action = GatewayAction.FLAG
+                threat_type_override = "CredentialStuffing"
+                risk_level_override = "HIGH"
+                is_anomalous_override = True
+                logger.warning(
+                    "credential_stuffing_flagged",
+                    request_id=request_id,
+                    ip=client_ip,
+                    failed_attempts=failed_attempts,
+                )
+        elif 200 <= upstream_response.status_code < 300:
+            await redis_service.record_login_result(client_ip, succeeded=True)
+
+    verdict = _build_verdict(
+        request_id, client_ip, request.method, request.url.path,
+        action, block_reason, prediction, ml_latency_ms,
+        (time.perf_counter() - start_time) * 1000,
+        threat_type_override=threat_type_override,
+        risk_level_override=risk_level_override,
+        is_anomalous_override=is_anomalous_override,
+        request_metadata=metadata,
+    )
+    await _publish_and_record(verdict)
+    upstream_response.headers["x-gateway-action"] = action.value
+    if threat_type_override is not None:
+        upstream_response.headers["x-gateway-threat-type"] = threat_type_override
     return upstream_response
 
 

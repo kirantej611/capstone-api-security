@@ -9,6 +9,7 @@ import json
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
+from fastapi import Response
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -62,7 +63,42 @@ class TestHealthEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert "blocked_ips" in data
+        assert "entries" in data
         assert "count" in data
+
+    @patch("app.main.redis_service")
+    def test_blocklist_endpoint_includes_trigger_reason(self, mock_redis, client):
+        mock_redis.get_blocklist_entries = AsyncMock(
+            return_value=[
+                {"ip": "192.0.2.25", "reason": "anomaly_burst"},
+            ]
+        )
+
+        response = client.get("/gateway/blocklist")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "blocked_ips": ["192.0.2.25"],
+            "entries": [{"ip": "192.0.2.25", "reason": "anomaly_burst"}],
+            "count": 1,
+        }
+
+    @patch("app.main.redis_service")
+    def test_add_blocklist_endpoint_stores_supplied_reason(self, mock_redis, client):
+        mock_redis.block_ip = AsyncMock()
+
+        response = client.post(
+            "/gateway/blocklist/192.0.2.25",
+            params={"reason": "manual_demo_block"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["reason"] == "manual_demo_block"
+        mock_redis.block_ip.assert_awaited_once_with(
+            "192.0.2.25",
+            reason="manual_demo_block",
+            ttl=None,
+        )
 
 
 # ── Proxy Pipeline Tests ──
@@ -78,6 +114,7 @@ class TestProxyPipeline:
         # Mock: not blocklisted, not rate-limited
         mock_redis.is_ip_blocked = AsyncMock(return_value=False)
         mock_redis.check_rate_limit = AsyncMock(return_value=(True, 1))
+        mock_redis.check_burst_limit = AsyncMock(return_value=(True, 1))
 
         # Mock: ML says normal
         mock_prediction = MLPredictResponse(
@@ -101,6 +138,55 @@ class TestProxyPipeline:
         # Should NOT be 403 (blocked) or 429 (rate-limited)
         assert resp.status_code != 403
         assert resp.status_code != 429
+
+    @patch("app.proxy_handler._forward_to_upstream", new_callable=AsyncMock)
+    @patch("app.proxy_handler.redis_service")
+    @patch("app.proxy_handler.kafka_service")
+    @patch("app.proxy_handler.ml_engine_client")
+    def test_recent_verdict_contains_redacted_request_and_model_details(
+        self, mock_ml, mock_kafka, mock_redis, mock_forward, client
+    ):
+        mock_redis.is_ip_blocked = AsyncMock(return_value=False)
+        mock_redis.check_rate_limit = AsyncMock(return_value=(True, 1))
+        mock_redis.check_burst_limit = AsyncMock(return_value=(True, 1))
+        mock_redis.record_login_result = AsyncMock(return_value=0)
+        mock_kafka.publish_request_metadata = AsyncMock()
+        mock_kafka.publish_verdict = AsyncMock()
+        mock_ml.predict = AsyncMock(
+            return_value=(
+                MLPredictResponse(
+                    anomaly_score=0.82,
+                    is_anomalous=False,
+                    threat_type="SQLi",
+                    threat_confidence=0.91,
+                    all_probabilities={"Normal": 0.09, "SQLi": 0.91},
+                    risk_level="HIGH",
+                    feature_importance={"num_sql_keywords": 3.0},
+                ),
+                7.5,
+            )
+        )
+        mock_forward.return_value = Response(content="ok", status_code=200)
+
+        response = client.post(
+            "/api/login?username=demo",
+            json={"username": "demo", "password": "must-not-be-displayed"},
+            headers={"Authorization": "Bearer must-not-be-displayed"},
+        )
+        assert response.status_code == 200, response.text
+        verdict = mock_kafka.publish_verdict.await_args.args[0]
+        recent = client.get("/gateway/verdicts/recent").json()
+        dashboard_verdict = next(item for item in recent if item["request_id"] == verdict.request_id)
+
+        assert verdict.feature_importance == {"num_sql_keywords": 3.0}
+        assert verdict.body == '{"username": "demo", "password": "[REDACTED]"}'
+        assert "authorization" not in {name.lower() for name in verdict.headers}
+        assert verdict.query_params == {"username": "demo"}
+        assert dashboard_verdict["feature_importance"] == {"num_sql_keywords": 3.0}
+        assert dashboard_verdict["all_probabilities"] == {"Normal": 0.09, "SQLi": 0.91}
+        assert dashboard_verdict["ml_latency_ms"] == 7.5
+        assert dashboard_verdict["total_latency_ms"] is not None
+        assert "must-not-be-displayed" not in dashboard_verdict["body"]
 
     @patch("app.proxy_handler.redis_service")
     @patch("app.proxy_handler.kafka_service")
@@ -135,10 +221,89 @@ class TestProxyPipeline:
     @patch("app.proxy_handler.redis_service")
     @patch("app.proxy_handler.kafka_service")
     @patch("app.proxy_handler.ml_engine_client")
+    def test_anomaly_burst_is_labeled_and_rate_limited(
+        self, mock_ml, mock_kafka, mock_redis, client
+    ):
+        mock_redis.is_ip_blocked = AsyncMock(return_value=False)
+        mock_redis.check_rate_limit = AsyncMock(return_value=(True, 31))
+        mock_redis.check_burst_limit = AsyncMock(return_value=(False, 31))
+        mock_redis.block_ip = AsyncMock()
+        mock_kafka.publish_request_metadata = AsyncMock()
+        mock_kafka.publish_verdict = AsyncMock()
+
+        response = client.get("/api/products")
+
+        assert response.status_code == 429
+        assert response.json()["reason"] == "anomaly_burst"
+        assert response.headers["x-gateway-threat-type"] == "AnomalyBurst"
+        mock_redis.block_ip.assert_awaited_once_with(
+            "testclient",
+            reason="anomaly_burst",
+        )
+        verdict = mock_kafka.publish_verdict.await_args.args[0]
+        assert verdict.action == GatewayAction.RATE_LIMIT
+        assert verdict.threat_type == "AnomalyBurst"
+        assert verdict.is_anomalous is True
+
+    @patch("app.proxy_handler._forward_to_upstream", new_callable=AsyncMock)
+    @patch("app.proxy_handler.redis_service")
+    @patch("app.proxy_handler.kafka_service")
+    @patch("app.proxy_handler.ml_engine_client")
+    def test_repeated_failed_logins_are_labeled_credential_stuffing(
+        self, mock_ml, mock_kafka, mock_redis, mock_forward, client
+    ):
+        mock_redis.is_ip_blocked = AsyncMock(return_value=False)
+        mock_redis.check_rate_limit = AsyncMock(return_value=(True, 1))
+        mock_redis.check_burst_limit = AsyncMock(return_value=(True, 1))
+        mock_redis.record_login_result = AsyncMock(side_effect=[1, 2, 3, 4, 5])
+        mock_kafka.publish_request_metadata = AsyncMock()
+        mock_kafka.publish_verdict = AsyncMock()
+        mock_forward.return_value = Response(
+            content='{"detail":"Invalid credentials"}',
+            status_code=401,
+            media_type="application/json",
+        )
+        mock_ml.predict = AsyncMock(
+            return_value=(
+                MLPredictResponse(
+                    anomaly_score=0.95,
+                    is_anomalous=False,
+                    threat_type="Normal",
+                    threat_confidence=0.95,
+                    all_probabilities={"Normal": 0.95},
+                    risk_level="LOW",
+                    feature_importance={},
+                ),
+                5.0,
+            )
+        )
+
+        responses = [
+            client.post("/api/login", json={"username": f"user-{n}", "password": "wrong"})
+            for n in range(5)
+        ]
+
+        assert all(response.status_code == 401 for response in responses)
+        assert responses[-2].headers["x-gateway-action"] == GatewayAction.ALLOW.value
+        assert responses[-1].headers["x-gateway-action"] == GatewayAction.FLAG.value
+        assert responses[-1].headers["x-gateway-threat-type"] == "CredentialStuffing"
+        assert mock_redis.record_login_result.await_args_list[-1].kwargs == {
+            "succeeded": False
+        }
+        verdict = mock_kafka.publish_verdict.await_args_list[-1].args[0]
+        assert verdict.action == GatewayAction.FLAG
+        assert verdict.threat_type == "CredentialStuffing"
+        assert verdict.is_anomalous is True
+        assert verdict.risk_level == "HIGH"
+
+    @patch("app.proxy_handler.redis_service")
+    @patch("app.proxy_handler.kafka_service")
+    @patch("app.proxy_handler.ml_engine_client")
     def test_block_critical_threat(self, mock_ml, mock_kafka, mock_redis, client):
         """A CRITICAL threat should be blocked (403)."""
         mock_redis.is_ip_blocked = AsyncMock(return_value=False)
         mock_redis.check_rate_limit = AsyncMock(return_value=(True, 1))
+        mock_redis.check_burst_limit = AsyncMock(return_value=(True, 1))
         mock_redis.block_ip = AsyncMock()
 
         mock_prediction = MLPredictResponse(
@@ -198,5 +363,9 @@ class TestConfig:
         from app.config import settings
         assert settings.gateway_port == 8080
         assert settings.rate_limit_max_requests == 100
+        assert settings.burst_limit_window == 10
+        assert settings.burst_limit_max_requests == 30
+        assert settings.credential_failure_window == 60
+        assert settings.credential_failure_threshold == 5
         assert settings.block_on_ml_failure is False
         assert settings.risk_threshold_block == "HIGH"

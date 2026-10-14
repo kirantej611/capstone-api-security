@@ -99,6 +99,10 @@ class GatewayVerdict(BaseModel):
     threat_confidence: Optional[float] = None
     risk_level: Optional[str] = None
     feature_importance: Optional[Dict[str, float]] = None
+    all_probabilities: Optional[Dict[str, float]] = None
+    headers: Optional[Dict[str, str]] = None
+    body: Optional[str] = None
+    query_params: Optional[Dict[str, str]] = None
 
     # Timing
     ml_latency_ms: Optional[float] = None
@@ -131,6 +135,16 @@ class RecentVerdict(BaseModel):
     threat_type: Optional[str] = None
     risk_level: Optional[str] = None
     anomaly_score: Optional[float] = None
+    is_anomalous: Optional[bool] = None
+    block_reason: Optional[BlockReason] = None
+    threat_confidence: Optional[float] = None
+    all_probabilities: Optional[Dict[str, float]] = None
+    feature_importance: Optional[Dict[str, float]] = None
+    headers: Optional[Dict[str, str]] = None
+    body: Optional[str] = None
+    query_params: Optional[Dict[str, str]] = None
+    ml_latency_ms: Optional[float] = None
+    total_latency_ms: Optional[float] = None
 
 
 class HealthResponse(BaseModel):

@@ -53,6 +53,22 @@ class Settings(BaseSettings):
         default=100,
         description="Max requests allowed per IP within the rate limit window",
     )
+    burst_limit_window: int = Field(
+        default=10,
+        description="Short window size (seconds) for detecting request bursts",
+    )
+    burst_limit_max_requests: int = Field(
+        default=30,
+        description="Max requests per IP within the short burst window",
+    )
+    credential_failure_window: int = Field(
+        default=60,
+        description="Window size (seconds) for counting failed login attempts",
+    )
+    credential_failure_threshold: int = Field(
+        default=5,
+        description="Failed logins from one IP needed to flag credential stuffing",
+    )
 
     # ── Kafka ──
     kafka_bootstrap_servers: str = Field(

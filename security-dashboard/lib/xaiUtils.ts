@@ -1,116 +1,58 @@
-export const FEATURE_METADATA: Record<
-  string,
-  { label: string; description: string; normalBaseline: number; unit: string }
-> = {
-  num_sql_keywords: {
-    label: 'SQL Keywords',
-    description: 'Detects reserved SQL query tokens (UNION, SELECT, DROP, OR 1=1, SLEEP)',
-    normalBaseline: 0,
-    unit: 'tokens',
-  },
-  num_xss_keywords: {
-    label: 'XSS Vector Tokens',
-    description: 'DOM manipulation and script execution vectors (<script>, onerror=, javascript:)',
-    normalBaseline: 0,
-    unit: 'tokens',
-  },
-  num_path_traversal_patterns: {
-    label: 'Directory Traversal',
-    description: 'Relative parent directory sequence patterns (../, ..\\, %2e%2e/)',
-    normalBaseline: 0,
-    unit: 'sequences',
-  },
-  num_command_injection_patterns: {
-    label: 'OS Command Injection',
-    description: 'Shell chaining operators and system binaries (; cat, | nc, && whoami, /etc/passwd)',
-    normalBaseline: 0,
-    unit: 'chains',
-  },
-  payload_entropy: {
-    label: 'Shannon Entropy',
-    description: 'Measures byte randomness. Unusually high entropy indicates obfuscation / packing.',
-    normalBaseline: 3.4,
-    unit: 'bits',
-  },
-  has_encoded_chars: {
-    label: 'Encoded Characters',
-    description: 'Hex, URL, or Unicode encoding techniques often used to evade WAF filters',
-    normalBaseline: 0,
-    unit: 'flag',
-  },
-  num_special_chars: {
-    label: 'Special Characters',
-    description: 'Non-alphanumeric punctuation commonly used for injection syntax delimiters',
-    normalBaseline: 2,
-    unit: 'chars',
-  },
-  url_length: {
-    label: 'URL Length',
-    description: 'Total URI string length. Outliers often correlate with parameter pollution',
-    normalBaseline: 32,
-    unit: 'chars',
-  },
-  body_length: {
-    label: 'Body Length',
-    description: 'Request payload byte count',
-    normalBaseline: 45,
-    unit: 'bytes',
-  },
-  uppercase_ratio: {
-    label: 'Uppercase Ratio',
-    description: 'Proportion of capital letters (e.g. SELECT * FROM users)',
-    normalBaseline: 0.08,
-    unit: 'ratio',
-  },
-  num_digits_ratio: {
-    label: 'Digit Ratio',
-    description: 'Proportion of numeric characters to total character volume',
-    normalBaseline: 0.12,
-    unit: 'ratio',
-  },
-  max_param_value_length: {
-    label: 'Max Parameter Length',
-    description: 'Length of the single longest parameter string',
-    normalBaseline: 18,
-    unit: 'chars',
-  },
-  num_parameters: {
-    label: 'Parameter Count',
-    description: 'Total key-value arguments supplied in query or multipart body',
-    normalBaseline: 2,
-    unit: 'params',
-  },
-  num_dots: {
-    label: 'Dot Count',
-    description: 'Count of period (.) characters, relevant to path traversal and IP lookups',
-    normalBaseline: 1,
-    unit: 'dots',
-  },
-  num_slashes: {
-    label: 'Slash Count',
-    description: 'Path delimiter hierarchy depth',
-    normalBaseline: 3,
-    unit: 'slashes',
-  },
-  avg_param_value_length: {
-    label: 'Avg Param Length',
-    description: 'Average character length across all provided parameters',
-    normalBaseline: 12,
-    unit: 'chars',
-  },
-  request_method: {
-    label: 'HTTP Verb Value',
-    description: 'Numeric mapping of HTTP method type (GET=1, POST=2, PUT=3, DELETE=4)',
-    normalBaseline: 1,
-    unit: 'id',
-  },
-  content_length_header: {
-    label: 'Content-Length',
-    description: 'Reported size from HTTP headers',
-    normalBaseline: 50,
-    unit: 'bytes',
-  },
-};
+export const MODEL_FEATURES = [
+  ['url_length', 'Length of the normalized request URL or target.', 'characters'],
+  ['body_length', 'Length of the request body supplied to inference.', 'characters'],
+  ['num_special_chars', 'Count of selected punctuation characters across the request.', 'count'],
+  ['num_sql_keywords', 'Count of configured SQL keyword matches in request text.', 'count'],
+  ['num_xss_keywords', 'Count of configured XSS token matches in request text.', 'count'],
+  ['num_path_traversal_patterns', 'Count of recognized parent-directory traversal patterns.', 'count'],
+  ['num_command_injection_patterns', 'Count of configured shell-command syntax patterns.', 'count'],
+  ['has_encoded_chars', 'Whether percent-encoded byte sequences are present.', '0 or 1'],
+  ['num_parameters', 'Number of parsed query and body key-value parameters.', 'count'],
+  ['max_param_value_length', 'Length of the longest parsed parameter value.', 'characters'],
+  ['avg_param_value_length', 'Mean length of parsed parameter values.', 'characters'],
+  ['payload_entropy', 'Shannon entropy of the combined request text.', 'bits per character'],
+  ['num_digits_ratio', 'Fraction of combined request characters that are digits.', 'ratio'],
+  ['uppercase_ratio', 'Fraction of combined request characters that are uppercase.', 'ratio'],
+  ['num_dots', 'Number of periods in the URL path.', 'count'],
+  ['num_slashes', 'Number of slashes in the URL path.', 'count'],
+  ['request_method', 'Encoded HTTP method: GET=0, POST=1, PUT=2, DELETE=3, PATCH=4, OPTIONS=5, HEAD=6.', 'category ID'],
+  ['content_length_header', 'Content-Length header value; falls back to body length when absent.', 'bytes'],
+  ['double_encoding_depth', 'Detected repeated percent-encoding depth.', 'count'],
+  ['unicode_escape_count', 'Number of Unicode or hex escape sequences.', 'count'],
+  ['null_byte_count', 'Number of recognized null-byte encodings.', 'count'],
+  ['comment_sequence_count', 'Number of SQL or code comment markers.', 'count'],
+  ['hex_encoding_count', 'Number of 0x-prefixed hexadecimal values.', 'count'],
+  ['nested_tag_depth', 'Approximate maximum nesting depth of HTML tags.', 'depth'],
+  ['event_handler_count', 'Number of recognized HTML event-handler names.', 'count'],
+  ['protocol_handler_count', 'Number of recognized nonstandard or script URL schemes.', 'count'],
+  ['suspicious_header_count', 'Count of configured suspicious header conditions.', 'count'],
+  ['param_name_entropy', 'Shannon entropy of parsed parameter names.', 'bits per character'],
+  ['repeated_char_ratio', 'Longest run of a repeated character divided by request length.', 'ratio'],
+  ['non_printable_char_count', 'Number of non-printable request characters (excluding common whitespace).', 'count'],
+  ['max_param_name_length', 'Length of the longest parsed parameter name.', 'characters'],
+  ['query_depth', 'Number of query parameters inferred from ampersands.', 'count'],
+  ['body_entropy', 'Shannon entropy of the request body.', 'bits per character'],
+  ['url_entropy', 'Shannon entropy of the request URL.', 'bits per character'],
+  ['has_base64_pattern', 'Whether a configured Base64-like sequence was found.', '0 or 1'],
+  ['semicolon_count', 'Number of semicolons in combined request text.', 'count'],
+  ['pipe_count', 'Number of pipe characters in combined request text.', 'count'],
+  ['backtick_count', 'Number of backticks in combined request text.', 'count'],
+  ['curly_brace_depth', 'Count of configured template-expression markers.', 'count'],
+  ['ratio_non_alnum', 'Fraction of combined request characters that are not alphanumeric.', 'ratio'],
+  ['consecutive_special_max', 'Longest run of non-alphanumeric characters.', 'characters'],
+  ['ssrf_indicator_count', 'Number of configured SSRF-like indicators in request text.', 'count'],
+] as const;
+
+export const FEATURE_METADATA = Object.fromEntries(
+  MODEL_FEATURES.map(([name, description, unit]) => [
+    name,
+    {
+      label: name.replaceAll('_', ' '),
+      description,
+      unit,
+    },
+  ])
+) as Record<string, { label: string; description: string; unit: string }>;
 
 export const ATTACK_SCENARIOS = [
   {

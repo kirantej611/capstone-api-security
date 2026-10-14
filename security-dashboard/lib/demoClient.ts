@@ -1,8 +1,6 @@
 import { ATTACK_SCENARIOS } from './xaiUtils';
 import { AttackScenario } from './types';
-
-export const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:8080';
-export const VICTIM_URL = process.env.NEXT_PUBLIC_VICTIM_URL || 'http://localhost:8081';
+import { getGatewayUrl, getVictimUrl } from './serviceUrls';
 
 export const DEMO_SCENARIOS: AttackScenario[] = ATTACK_SCENARIOS;
 
@@ -48,7 +46,7 @@ export async function executeDemoRequest(
 ): Promise<DemoAttempt> {
   assertAllowedEndpoint(scenario.targetEndpoint);
 
-  const base = route === 'protected' ? GATEWAY_URL : VICTIM_URL;
+  const base = route === 'protected' ? getGatewayUrl() : getVictimUrl();
   const label =
     route === 'protected'
       ? 'Protected (through shield)'
