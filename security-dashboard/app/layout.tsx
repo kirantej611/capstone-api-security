@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import Chatbot from '../components/Chatbot';
 
 export const metadata: Metadata = {
   title: 'AEGIS-AI SHIELD // Neural Security Command Center',
@@ -22,7 +23,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Chatbot />
+      </body>
     </html>
   );
 }

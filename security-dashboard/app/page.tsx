@@ -234,7 +234,7 @@ export default function DashboardPage() {
         )}
 
         {/* 6. SYSTEM TOPOLOGY VIEW */}
-        {activeTab === 'topology' && <TopologyMap />}
+        {activeTab === 'topology' && <TopologyMap verdicts={verdicts} />}
 
       </main>
 

@@ -1,173 +1,314 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Network, Shield, Cpu, Database, Server, Radio } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Network, Shield, Cpu, Database, Server, Radio, AlertTriangle } from 'lucide-react';
+import { RecentVerdict } from '../lib/types';
 
-export default function TopologyMap() {
+export default function TopologyMap({ verdicts }: { verdicts?: RecentVerdict[] }) {
   const [activeNode, setActiveNode] = useState<string>('gateway');
+  const [isAttacking, setIsAttacking] = useState(false);
+  const [threatDetected, setThreatDetected] = useState(false);
+
+  const latestVerdict = verdicts && verdicts.length > 0 ? verdicts[0] : null;
+  const latestRequestId = latestVerdict?.request_id;
+
+  useEffect(() => {
+    if (!latestVerdict || !latestRequestId) return;
+    
+    // Trigger animation because the ID changed
+    setIsAttacking(true);
+    if (latestVerdict.action === 'BLOCK' || latestVerdict.action === 'RATE_LIMIT') {
+      setThreatDetected(true);
+    } else {
+      setThreatDetected(false);
+    }
+    
+    const timer = setTimeout(() => {
+      setIsAttacking(false);
+      setThreatDetected(false);
+    }, 20000); // 20 seconds! Stays on screen for presentation
+    
+    return () => clearTimeout(timer);
+  }, [latestRequestId]); // ONLY re-run when the ID actually changes
 
   const nodes = [
-    {
-      id: 'clients',
-      title: 'Clients & Simulation',
-      role: 'Member 2 (Simulation)',
-      tech: 'Python Traffic Generator',
-      port: 'Ingress Stream',
-      desc: 'Generates normal browsing, SQL injections on login, XSS reviews, and credential stuffing bursts.',
-      icon: Radio,
-      color: '#eab308',
-    },
-    {
-      id: 'gateway',
-      title: 'AI Shield Gateway',
-      role: 'Member 2 (The Shield)',
-      tech: 'FastAPI + aiokafka + Redis',
-      port: ':8080 (Public)',
-      desc: 'Front-line defense. Checks the Redis blocklist, applies sliding-window rate limits, sends eligible requests to the ML engine, and proxies permitted traffic.',
-      icon: Shield,
-      color: '#0284c7',
-    },
-    {
-      id: 'ml_engine',
-      title: 'Neural Engine',
-      role: 'Member 1 (The Brain)',
-      tech: 'PyTorch Deep Autoencoder + CNN+BiLSTM',
-      port: ':8001 (Internal)',
-      desc: 'Extracts request features, scores anomalies, and classifies threat categories.',
-      icon: Cpu,
-      color: '#8b5cf6',
-    },
-    {
-      id: 'redis',
-      title: 'Redis In-Memory Store',
-      role: 'Shared (M2 & M3)',
-      tech: 'Redis 7.2 Alpine',
-      port: ':6379',
-      desc: 'Holds the dynamic IP blocklist and request rate-limit counters.',
-      icon: Server,
-      color: '#ef4444',
-    },
-    {
-      id: 'kafka',
-      title: 'Kafka Event Bus',
-      role: 'Event Streaming',
-      tech: 'Confluent Kafka + Zookeeper',
-      port: ':9092',
-      desc: 'Streams raw request metadata (api.requests.raw) and verdicts (api.verdicts) asynchronously.',
-      icon: Network,
-      color: '#06b6d4',
-    },
-    {
-      id: 'victim',
-      title: 'Victim Backend',
-      role: 'Member 3 & 4 (Target)',
-      tech: 'FastAPI + PostgreSQL',
-      port: ':8081',
-      desc: 'Target e-commerce store with SQLi login, stored XSS reviews, and path traversal downloads.',
-      icon: Database,
-      color: '#10b981',
-    },
+    { id: 'clients', label: 'External Web', icon: Radio, x: 20, y: 185, color: '#00ff41' },
+    { id: 'gateway', label: 'API Shield', icon: Shield, x: 280, y: 185, color: '#00ff41' },
+    { id: 'redis', label: 'Redis DB', icon: Server, x: 280, y: 25, color: '#00ff41' },
+    { id: 'ml_engine', label: 'ML Brain', icon: Cpu, x: 520, y: 25, color: '#00ff41' },
+    { id: 'kafka', label: 'Kafka Bus', icon: Network, x: 380, y: 340, color: '#00ff41' },
+    { id: 'backend', label: 'Sec Backend', icon: Database, x: 600, y: 340, color: '#00ff41' },
+    { id: 'victim', label: 'Victim App', icon: Database, x: 650, y: 185, color: '#00ff41' }
   ];
 
-  const current = nodes.find((n) => n.id === activeNode) || nodes[1];
-  const CurrentIcon = current.icon;
+  const edges = [
+    { from: 'clients', to: 'gateway' },
+    { from: 'gateway', to: 'redis' },
+    { from: 'gateway', to: 'ml_engine' },
+    { from: 'gateway', to: 'kafka' },
+    { from: 'kafka', to: 'backend' },
+    { from: 'backend', to: 'redis' },
+    { from: 'gateway', to: 'victim' },
+  ];
+
+  const getPos = (id: string) => nodes.find(n => n.id === id)!;
+
+  const matrixGreen = '#00ff41';
+  const alertRed = '#ff003c';
+  const textBright = '#e0e0e0';
 
   return (
-    <div className="white-card">
-      <div className="card-header-row">
+    <div style={{ 
+      background: 'radial-gradient(circle at center, #0a110a 0%, #000000 100%)', 
+      borderRadius: '16px', 
+      padding: '1.5rem', 
+      border: `1px solid ${isAttacking && threatDetected ? '#550000' : '#003311'}`, 
+      boxShadow: isAttacking && threatDetected ? `inset 0 0 50px ${alertRed}30, 0 0 30px ${alertRed}40` : `inset 0 0 30px ${matrixGreen}10, 0 0 25px ${matrixGreen}15`, 
+      overflow: 'hidden', 
+      position: 'relative',
+      transition: 'all 0.5s ease'
+    }}>
+      <style>{`
+        @keyframes flowData {
+          from { stroke-dashoffset: 30; }
+          to { stroke-dashoffset: 0; }
+        }
+        @keyframes fillPipe {
+          from { stroke-dashoffset: 500; }
+          to { stroke-dashoffset: 0; }
+        }
+        .wire-base {
+          stroke: #1a2e1f;
+          stroke-width: 3;
+          stroke-linecap: round;
+        }
+        .wire-base-alert {
+          stroke: #3a1111;
+          stroke-width: 3;
+          stroke-linecap: round;
+        }
+        .data-packet {
+          stroke-dasharray: 10 20;
+          stroke-linecap: round;
+          animation: flowData 1s linear infinite; 
+        }
+        .data-packet-seq {
+          stroke-dasharray: 500;
+          stroke-dashoffset: 500;
+          animation: fillPipe 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .node-box {
+          background: rgba(0, 20, 5, 0.7);
+          backdrop-filter: blur(8px);
+          border: 1px solid #005511;
+          border-radius: 8px;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 15px rgba(0, 255, 65, 0.1);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+        }
+        .node-box:hover {
+          border-color: #00ff41;
+          box-shadow: 0 0 20px rgba(0, 255, 65, 0.4), inset 0 0 10px rgba(0, 255, 65, 0.2);
+          transform: translateY(-2px);
+        }
+        .node-box.alert {
+          background: rgba(40, 0, 5, 0.8);
+          border: 1px solid #ff003c;
+          box-shadow: 0 0 30px rgba(255, 0, 60, 0.6), inset 0 0 15px rgba(255, 0, 60, 0.3);
+          animation: pulseNode 1.5s infinite alternate; /* Slowed from 0.5s to 1.5s */
+        }
+        @keyframes pulseNode {
+          from { transform: scale(1); box-shadow: 0 0 20px rgba(255, 0, 60, 0.4); }
+          to { transform: scale(1.05); box-shadow: 0 0 40px rgba(255, 0, 60, 0.8); }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ marginBottom: '1.5rem', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h3 className="card-title">System Architecture Topology</h3>
-          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            Microservices Dataflow • Click any subsystem to view details
+          <h3 style={{ color: matrixGreen, fontFamily: 'monospace', fontSize: '1.4rem', textShadow: `0 0 10px ${matrixGreen}`, margin: 0, letterSpacing: '2px' }}>
+            [ NEURAL_TOPOLOGY_GRID ]
+          </h3>
+          <p style={{ color: '#008822', fontFamily: 'monospace', fontSize: '0.85rem', margin: '6px 0 0 0' }}>SYSTEM TRACING ACTIVE // VERDICTS LINKED</p>
+        </div>
+        
+        {/* Dynamic Status Badge */}
+        <div style={{ 
+          padding: '6px 16px', 
+          borderRadius: '20px', 
+          background: isAttacking ? (threatDetected ? 'rgba(255,0,60,0.1)' : 'rgba(0,255,65,0.1)') : 'rgba(0,255,65,0.05)',
+          border: `1px solid ${isAttacking ? (threatDetected ? alertRed : matrixGreen) : '#005511'}`,
+          display: 'flex', alignItems: 'center', gap: '8px'
+        }}>
+          {isAttacking && threatDetected && <AlertTriangle size={16} color={alertRed} />}
+          <span style={{ 
+            color: isAttacking ? (threatDetected ? alertRed : matrixGreen) : '#008822', 
+            fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 'bold' 
+          }}>
+            {isAttacking ? (threatDetected ? 'CRITICAL THREAT BLOCKED' : 'TRAFFIC ANALYSIS') : 'IDLE MONITORING'}
           </span>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        {nodes.map((n) => {
-          const Icon = n.icon;
-          const isSelected = activeNode === n.id;
-          return (
-            <div
-              key={n.id}
-              onClick={() => setActiveNode(n.id)}
-              style={{
-                padding: '1rem',
-                borderRadius: 'var(--radius-lg)',
-                background: isSelected ? 'var(--accent-cyan-light)' : '#f8fafc',
-                border: `1px solid ${isSelected ? '#38bdf8' : 'var(--border-light)'}`,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '6px',
-                    background: `${n.color}20`,
-                    color: n.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+      <div style={{ width: '100%', height: '440px', position: 'relative' }}>
+        <svg width="100%" height="100%" viewBox="0 0 800 440" style={{ position: 'absolute', top: 0, left: 0 }}>
+          <defs>
+            <filter id="glow-green" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            {/* Grid Pattern */}
+            <pattern id="matrixGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#00ff41" strokeWidth="0.5" opacity="0.05" />
+            </pattern>
+          </defs>
+
+          <rect width="100%" height="100%" fill="url(#matrixGrid)" />
+
+          {/* Render Connections */}
+          {edges.map((e, i) => {
+            const p1 = getPos(e.from);
+            const p2 = getPos(e.to);
+            const x1 = p1.x + 60; const y1 = p1.y + 45;
+            const x2 = p2.x + 60; const y2 = p2.y + 45;
+
+            // State Logic
+            const isTargetLine = e.to === 'victim';
+            // Now we want the whole path to light up red if there is a threat
+            const isAttackPath = true; // Apply to all paths so we can show the forensic trace
+            const isBlocked = isTargetLine && threatDetected;
+
+            let wireClass = 'wire-base';
+            let packetClass = 'data-packet';
+            let packetColor = matrixGreen;
+            let packetWidth = 4;
+            
+            // DEMO SEQUENCE TIMING: Slowed down for explanation
+            let animationDelay = '0s';
+            if (e.from === 'clients') animationDelay = '0s'; // Hop 1: Into Gateway
+            if (e.from === 'gateway' && (e.to === 'ml_engine' || e.to === 'redis')) animationDelay = '2.5s'; // Hop 2: Inspection
+            if (e.from === 'gateway' && e.to === 'kafka') animationDelay = '5s'; // Hop 3: Logging
+            if (e.from === 'kafka' && e.to === 'backend') animationDelay = '7.5s'; // Hop 4: Async Processing
+            if (e.from === 'backend' && e.to === 'redis') animationDelay = '10s'; // Hop 5: Global Blocklist Update
+            if (e.from === 'gateway' && e.to === 'victim') animationDelay = '2.5s'; // Hop 2: Passed to target (if allowed)
+
+            if (isBlocked) {
+              // Line to target store goes dead
+              wireClass = 'wire-base';
+              packetClass = '';
+              packetColor = 'transparent';
+            } else if (isAttacking) {
+              wireClass = 'wire-base-alert';
+              packetClass = 'data-packet-seq';
+              // If it's a blocked threat, color the trace red. If allowed, color it green.
+              packetColor = threatDetected ? alertRed : matrixGreen;
+              packetWidth = 6;
+            } else {
+              // Idle background chatter
+              packetClass = 'data-packet';
+              packetWidth = 2;
+              packetColor = '#006611';
+            }
+
+            return (
+              <g key={`${latestRequestId || 'idle'}-${i}`}>
+                {/* Background Solid Wire */}
+                <line x1={x1} y1={y1} x2={x2} y2={y2} className={wireClass} style={{ opacity: isBlocked ? 0.3 : 1 }} />
+                
+                {/* Moving Data Packets over the wire */}
+                {packetClass && (
+                  <line 
+                    x1={x1} y1={y1} x2={x2} y2={y2} 
+                    stroke={packetColor} 
+                    strokeWidth={packetWidth}
+                    className={packetClass} 
+                    style={packetClass === 'data-packet-seq' ? { animationDelay } : undefined}
+                  />
+                )}
+              </g>
+            )
+          })}
+          
+          {/* Render Nodes */}
+          {nodes.map((n) => {
+            const Icon = n.icon;
+            const isGateway = n.id === 'gateway';
+            const isTarget = n.id === 'victim';
+            const isAlerting = isAttacking && threatDetected && isGateway;
+            
+            let iconColor = matrixGreen;
+            if (isAlerting) iconColor = '#fff';
+            if (isTarget && isAttacking && threatDetected) iconColor = '#444'; // Safe but isolated
+
+            return (
+              <foreignObject key={n.id} x={n.x} y={n.y} width="120" height="90" style={{ overflow: 'visible' }}>
+                <div 
+                  className={`node-box ${isAlerting ? 'alert' : ''}`}
+                  onClick={() => setActiveNode(n.id)}
+                  style={{ opacity: (isTarget && isAttacking && threatDetected) ? 0.5 : 1 }}
                 >
-                  <Icon size={15} />
+                  <Icon size={30} color={iconColor} style={{ marginBottom: '10px' }} />
+                  <span style={{ 
+                    color: isAlerting ? '#fff' : textBright, 
+                    fontSize: '0.75rem', 
+                    fontFamily: 'monospace', 
+                    textAlign: 'center', 
+                    fontWeight: 700,
+                    letterSpacing: '1px'
+                  }}>
+                    {n.label}
+                  </span>
                 </div>
-                <span className="font-mono" style={{ fontSize: '0.72rem', color: n.color, fontWeight: 600 }}>
-                  {n.port}
-                </span>
-              </div>
-
-              <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{n.title}</h4>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{n.role}</p>
-            </div>
-          );
-        })}
+              </foreignObject>
+            )
+          })}
+        </svg>
       </div>
-
-      <div
-        style={{
-          padding: '1.25rem',
-          borderRadius: 'var(--radius-lg)',
-          background: '#f8fafc',
-          border: '1px solid var(--border-light)',
-          display: 'flex',
-          gap: '1.25rem',
-          alignItems: 'flex-start',
-        }}
-      >
-        <div
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: 'var(--radius-md)',
-            background: `${current.color}20`,
-            color: current.color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <CurrentIcon size={22} />
-        </div>
-
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
-            <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 600 }}>{current.title}</h3>
-            <span className="select-pill font-mono">{current.port}</span>
-            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{current.role}</span>
+      
+      {/* HUD Forensic Info Box */}
+      {isAttacking && threatDetected && verdicts && (
+        <div style={{ 
+          position: 'absolute', 
+          bottom: '2rem', 
+          left: '2rem', 
+          background: 'rgba(20, 0, 5, 0.85)', 
+          backdropFilter: 'blur(10px)',
+          border: `1px solid ${alertRed}`, 
+          borderLeft: `4px solid ${alertRed}`,
+          padding: '1.25rem', 
+          borderRadius: '6px', 
+          fontFamily: 'monospace', 
+          boxShadow: `0 10px 30px rgba(255, 0, 60, 0.4)`,
+          minWidth: '280px',
+          animation: 'fadeIn 0.3s ease-out'
+        }}>
+          <h4 style={{ margin: '0 0 10px 0', color: '#fff', fontSize: '0.9rem' }}>&gt; FORENSIC_REPORT</h4>
+          <div style={{ color: alertRed, fontSize: '0.8rem', lineHeight: '1.5' }}>
+            <span style={{color: '#888'}}>IP:</span> {verdicts[0].client_ip}<br/>
+            <span style={{color: '#888'}}>THREAT:</span> <span style={{fontWeight: 'bold', color: '#fff'}}>{verdicts[0].threat_type}</span><br/>
+            <span style={{color: '#888'}}>SCORE:</span> {(verdicts[0].anomaly_score ?? 0) > 0 ? (verdicts[0].anomaly_score!.toFixed(2)) : 'HIGH'}<br/>
+            <span style={{color: '#888'}}>ACTION:</span> QUARANTINE IMPOSED<br/>
+            <span style={{color: '#888'}}>TARGET:</span> SECURED
           </div>
-
-          <div className="font-mono" style={{ fontSize: '0.76rem', color: '#0284c7', marginBottom: '0.35rem' }}>
-            Tech: {current.tech}
-          </div>
-
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>{current.desc}</p>
         </div>
-      </div>
+      )}
     </div>
   );
 }

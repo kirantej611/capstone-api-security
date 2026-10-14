@@ -13,3 +13,4 @@ build/
 .ruff_cache/
 .DS_Store
 *.log
+ollama-data/

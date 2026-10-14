@@ -1,4 +1,7 @@
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:8080';
+const isServer = typeof window === 'undefined';
+const GATEWAY_URL = isServer 
+  ? process.env.INTERNAL_GATEWAY_URL || 'http://api-gateway:8080'
+  : '/api/proxy/gateway-root';
 
 const TOKEN_KEY = 'aurora.shop.token';
 const USER_KEY = 'aurora.shop.user';

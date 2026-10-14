@@ -1,8 +1,15 @@
 import { ATTACK_SCENARIOS } from './xaiUtils';
 import { AttackScenario } from './types';
 
-export const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:8080';
-export const VICTIM_URL = process.env.NEXT_PUBLIC_VICTIM_URL || 'http://localhost:8081';
+const isServer = typeof window === 'undefined';
+
+export const GATEWAY_URL = isServer 
+  ? process.env.INTERNAL_GATEWAY_URL || 'http://api-gateway:8080'
+  : '/api/proxy/gateway-root';
+
+export const VICTIM_URL = isServer
+  ? process.env.INTERNAL_VICTIM_URL || 'http://victim-ecommerce:8081'
+  : '/api/proxy/victim-root';
 
 export const DEMO_SCENARIOS: AttackScenario[] = ATTACK_SCENARIOS;
 
@@ -24,6 +31,7 @@ export interface DemoAttempt {
 }
 
 function isLoopbackHost(url: string): boolean {
+  if (url.startsWith('/')) return true; // Relative proxy URL is safe
   try {
     const parsed = new URL(url);
     return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';

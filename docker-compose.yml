@@ -89,7 +89,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "127.0.0.1:8085:8080"
+    volumes:
+      - ./api-gateway:/app
     environment:
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
       GATEWAY_HOST: "0.0.0.0"
       GATEWAY_PORT: "8080"
       UPSTREAM_BASE_URL: "http://victim-ecommerce:8081"
@@ -118,6 +121,8 @@ services:
       ml-engine:
         condition: service_healthy
     restart: unless-stopped
+
+
 
   # ── ML Intelligence Engine (PyTorch + Scikit-Learn) ──
   # Real-time anomaly detection and attack classification
@@ -167,13 +172,13 @@ services:
     build:
       context: ./security-dashboard
       args:
-        NEXT_PUBLIC_GATEWAY_URL: "http://10.214.252.246:8080"
-        NEXT_PUBLIC_VICTIM_URL: "http://10.214.252.246:8081"
+        NEXT_PUBLIC_GATEWAY_URL: "http://localhost:8080"
+        NEXT_PUBLIC_VICTIM_URL: "http://localhost:8081"
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_GATEWAY_URL: "http://10.214.252.246:8080"
-      NEXT_PUBLIC_VICTIM_URL: "http://10.214.252.246:8081"
+      NEXT_PUBLIC_GATEWAY_URL: "http://localhost:8080"
+      NEXT_PUBLIC_VICTIM_URL: "http://localhost:8081"
       NEXT_PUBLIC_SECURITY_BACKEND_URL: "http://localhost:8082"
     depends_on:
       - api-gateway

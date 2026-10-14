@@ -79,8 +79,15 @@ class DashboardStore {
 
 export const localStore = new DashboardStore();
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:8080';
-const VICTIM_URL = process.env.NEXT_PUBLIC_VICTIM_URL || 'http://localhost:8081';
+const isServer = typeof window === 'undefined';
+
+const GATEWAY_URL = isServer 
+  ? process.env.INTERNAL_GATEWAY_URL || 'http://api-gateway:8080'
+  : '/api/proxy';
+
+const VICTIM_URL = isServer
+  ? process.env.INTERNAL_VICTIM_URL || 'http://victim-ecommerce:8081'
+  : '/api/proxy/victim';
 
 /**
  * Fetch Gateway Statistics
